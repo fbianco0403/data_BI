@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -125,6 +125,9 @@
                                 <h3 class="section-title">销售分析总览</h3>
                             </div>
                             <div class="flex items-center gap-2">
+                                <a href="sales-drilldown.html" class="px-2.5 py-1 rounded bg-[#0057B8]/10 text-[#0057B8] hover:bg-[#0057B8]/20 text-xs font-semibold transition-all">
+                                    🔍 接单深度穿透 &rarr;
+                                </a>
                                 <a href="sales-industry.html" class="px-2.5 py-1 rounded bg-[#0057B8]/10 text-[#0057B8] hover:bg-[#0057B8]/20 text-xs font-semibold transition-all">
                                     📊 行业经营分析表 &rarr;
                                 </a>
@@ -428,9 +431,11 @@
         var dom = document.getElementById('kpi-cards');
         if (dom) {
             dom.innerHTML = cards.map(function (c) {
-                return '<div class="sales-overview-cell">' +
+                var isOrderAmt = (c.label === '接单销售额');
+                return '<div class="sales-overview-cell ' + (isOrderAmt ? 'kpi-clickable group relative cursor-pointer' : '') + '" ' +
+                    (isOrderAmt ? 'onclick="location.href=\'sales-drilldown.html\'" title="💡 点击穿透：查看接单销售额多维深度分析看板"' : '') + '>' +
                     '<div class="kpi-label">' + c.label + '</div>' +
-                    '<div class="kpi-value sales-overview-value" style="color:' + c.color + '">' + c.value + '<span class="unit text-xs">' + c.unit + '</span></div>' +
+                    '<div class="kpi-value sales-overview-value ' + (isOrderAmt ? 'group-hover:text-[#0057B8] transition-colors' : '') + '" style="color:' + c.color + '">' + c.value + '<span class="unit text-xs">' + c.unit + '</span></div>' +
                     '</div>';
             }).join('');
         }

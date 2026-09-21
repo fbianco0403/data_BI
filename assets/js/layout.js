@@ -56,6 +56,7 @@ var BDLayout = (function () {
             icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
             children: [
                 { key: 'sales-overview', href: 'sales/sales-center.html', label: '销售分析总览' },
+                { key: 'sales-drilldown', href: 'sales/sales-drilldown.html', label: '接单穿透深度分析' },
                 { key: 'sales-industry', href: 'sales/sales-industry.html', label: '行业经营分析表' },
                 { key: 'sales-rep', href: 'sales/sales-rep.html', label: '业务员目标管理表' }
             ]
