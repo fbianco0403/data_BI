@@ -8,8 +8,23 @@ var BDLayout = (function () {
     var currentSysYear = baseYear;
     var currentSysMonth = 9; // 经营平台当期标准默认：2026年 9月
 
-    var selectedYear = parseInt(sessionStorage.getItem('bd_selected_year')) || 2026;
-    var selectedMonth = parseInt(sessionStorage.getItem('bd_selected_month')) || 9; // 默认 9月
+    function safeGetStorage(key, defaultVal) {
+        try {
+            var v = sessionStorage.getItem(key);
+            return v !== null ? v : defaultVal;
+        } catch (e) {
+            return defaultVal;
+        }
+    }
+
+    function safeSetStorage(key, val) {
+        try {
+            sessionStorage.setItem(key, val);
+        } catch (e) {}
+    }
+
+    var selectedYear = parseInt(safeGetStorage('bd_selected_year', '2026')) || 2026;
+    var selectedMonth = parseInt(safeGetStorage('bd_selected_month', '9')) || 9; // 默认 9月
 
     var availableYears = [currentSysYear, currentSysYear - 1, currentSysYear - 2];
 
@@ -112,11 +127,17 @@ var BDLayout = (function () {
         var el = document.getElementById('sidebar');
         if (!el) return;
 
-        var isCollapsed = sessionStorage.getItem('bd_sidebar_collapsed') === 'true';
+        var isCollapsed = safeGetStorage('bd_sidebar_collapsed', 'false') === 'true';
         if (isCollapsed) {
             el.classList.add('collapsed');
+            el.style.width = '68px';
+            el.style.minWidth = '68px';
+            el.style.maxWidth = '68px';
         } else {
             el.classList.remove('collapsed');
+            el.style.width = '224px';
+            el.style.minWidth = '224px';
+            el.style.maxWidth = '224px';
         }
 
         var base = getBasePath();
@@ -208,6 +229,10 @@ var BDLayout = (function () {
 
         html += '</nav>';
         el.innerHTML = html;
+        var edgeBtn = document.getElementById('sidebarEdgeToggle');
+        if (edgeBtn) edgeBtn.onclick = toggleCollapse;
+        var topBtn = document.getElementById('sidebarTopToggle');
+        if (topBtn) topBtn.onclick = toggleCollapse;
     }
 
     function renderYearDropdown() {
@@ -287,11 +312,23 @@ var BDLayout = (function () {
 
     function toggleCollapse(e) {
         if (e && e.stopPropagation) e.stopPropagation();
+        if (e && e.preventDefault) e.preventDefault();
         var el = document.getElementById('sidebar');
         if (!el) return;
         var isCollapsed = el.classList.toggle('collapsed');
-        sessionStorage.setItem('bd_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+        safeSetStorage('bd_sidebar_collapsed', isCollapsed ? 'true' : 'false');
         
+        // 内联样式即时切换尺寸（百分之百保证各浏览器与缓存环境下必变）
+        if (isCollapsed) {
+            el.style.width = '68px';
+            el.style.minWidth = '68px';
+            el.style.maxWidth = '68px';
+        } else {
+            el.style.width = '224px';
+            el.style.minWidth = '224px';
+            el.style.maxWidth = '224px';
+        }
+
         // 同步边缘收起/展开控制按钮状态
         var edgeChevron = document.getElementById('collapseEdgeChevron');
         if (edgeChevron) {
@@ -312,9 +349,11 @@ var BDLayout = (function () {
             topToggle.title = isCollapsed ? '展开侧边栏' : '收起侧边栏';
         }
 
+        // 立即触发与动画完成后二次触发 resize
+        window.dispatchEvent(new Event('resize'));
         setTimeout(function () {
             window.dispatchEvent(new Event('resize'));
-        }, 180);
+        }, 260);
     }
 
     function selectYear(yr) {
