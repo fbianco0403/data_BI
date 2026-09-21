@@ -76,34 +76,64 @@ http://localhost:8765/
 ```
 访问经营驾驶舱主页面：
 ```
-http://localhost:8765/executive-dashboard.html
+http://localhost:8765/dashboard/executive-dashboard.html
 ```
 
 ---
 
-## 📁 目录结构
+## 📁 模块化目录结构
 
 ```plaintext
 Baode_BI/
-├── assets/                     # 静态资源目录
-│   ├── css/                    # 样式表 (alfa.css 等)
-│   ├── js/                     # 数据状态管理器与核心业务逻辑 (sales-target-store.js, task-store.js 等)
-│   └── templates/              # 目标填报与财务导入 Excel 模板
-├── executive-dashboard.html    # 核心企业经营驾驶舱（含穿透下钻与 Excel 导出）
-├── sales-center.html           # 销售全景分析中心
-├── rd-center.html              # 研发中心分析看板
-├── production-center.html      # 生产制造运营中心
-├── quality-center.html         # 质量控制分析中心
-├── procurement-center.html     # 采购与供应链中心
-├── equipment-center.html       # 设备运行与 OEE 分析中心
-├── inventory-center.html       # 仓储与库存周转中心
-├── finance-center.html         # 财务指标与成本中心
-├── funds-center.html           # 资金调度与现金流中心
-├── target-entry.html           # SBU 年度/月度目标填报
-├── actual-entry.html           # 实绩录入中心
-├── mdm-center.html             # 主数据管理中心
-├── start_server.bat            # Windows 本地一键启动脚本
-├── start_server.py             # Python HTTP 本地服务脚本
-├── README.md                   # 项目工程与部署说明文档
-└── .gitignore                  # Git 忽略规则配置
+├── assets/                             # [公共资源] 全局样式、共享状态管理脚本、Excel模板
+│   ├── css/                            # 样式表 (alfa.css 等)
+│   ├── js/                             # 数据状态管理器与核心业务逻辑 (layout.js, sales-target-store.js 等)
+│   └── templates/                      # 目标填报与财务导入 Excel 模板
+├── index.html                          # [公共主入口] 平台系统门户导航台
+├── portal.html                         # [公共门户] 综合门户页面
+├── README.md                           # [公共文档] 工程说明文档
+├── GEMINI.md                           # [公共规范] 助手交互规范
+├── .gitignore                          # [公共配置] Git 忽略规则
+├── start_server.bat                    # [公共脚本] 本地服务启动脚本
+├── start_server.py                     # [公共脚本] Python HTTP 服务
+├── 宝得指标规格说明书_全量.xlsx          # [公共业务文档] 集团全量指标规格蓝图
+│
+├── dashboard/                          # 【模块1：经营驾驶舱】
+│   └── executive-dashboard.html        # 企业经营驾驶舱主页面（含穿透下钻与导出）
+│
+├── sales/                              # 【模块2：销售分析中心】
+│   ├── sales-center.html               # 销售全景分析看板
+│   ├── sales-industry.html             # 行业细分维度看板
+│   └── sales-rep.html                  # 销售代表业绩看板
+│
+├── rd/                                 # 【模块3：研发分析中心】
+│   └── rd-center.html                  # 研发效能与项目进度分析看板
+│
+├── production/                         # 【模块4：生产制造与品质分析】
+│   ├── production-center.html          # 生产与交付分析看板
+│   ├── equipment-center.html           # 设备运行与 OEE 分析看板
+│   └── quality-center.html             # 质量控制分析看板
+│
+├── supply-chain/                       # 【模块5：供应链采购与仓储】
+│   ├── procurement-center.html         # 采购与供应商分析看板
+│   ├── inventory-center.html           # 仓储与高库龄呆滞物料分析看板
+│   └── plan-inventory-center.html      # 备库计划中心看板
+│
+├── finance/                            # 【模块6：财务与资金中心】
+│   ├── finance-center.html             # 财务指标与三张表中心
+│   ├── funds-center.html               # 资金调度与现金流中心
+│   └── finance-entry.html              # 财务指标实绩录入填报
+│
+├── project/                            # 【模块7：项目与工单任务】
+│   ├── project-center.html             # 重点项目里程碑与分析中心
+│   └── task-center.html                # 协作工单与任务跟踪中心
+│
+├── target/                             # 【模块8：目标与实绩填报】
+│   ├── target-entry.html               # SBU 年度/月度目标填报中心
+│   ├── actual-entry.html               # 实际业务数据录入中心
+│   ├── 目标填报模板_SBU行业管理.xlsx    # SBU 目标填报专属模板
+│   └── 目标填报模板_SBU行业管理_v10_示例数据.xlsx
+│
+└── mdm/                                # 【模块9：主数据管理】
+    └── mdm-center.html                 # 基础数据字典与组织架构维护
 ```

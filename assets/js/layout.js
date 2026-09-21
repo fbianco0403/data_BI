@@ -13,84 +13,95 @@ var BDLayout = (function () {
 
     var availableYears = [currentSysYear, currentSysYear - 1, currentSysYear - 2];
 
+    function getBasePath() {
+        var p = window.location.pathname.replace(/\\/g, '/');
+        var subDirs = ['/dashboard/', '/sales/', '/rd/', '/production/', '/supply-chain/', '/finance/', '/project/', '/target/', '/mdm/'];
+        for (var i = 0; i < subDirs.length; i++) {
+            if (p.indexOf(subDirs[i]) !== -1) {
+                return '../';
+            }
+        }
+        return './';
+    }
+
     // 全局导航配置（包含一级模块与二级子导航）
     var NAV = [
         {
             key: 'overview',
-            href: 'executive-dashboard.html',
+            href: 'dashboard/executive-dashboard.html',
             label: '企业经营驾驶舱',
             code: 'KP▶',
             icon: 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
         },
         {
             key: 'sales',
-            href: 'sales-center.html',
+            href: 'sales/sales-center.html',
             label: '销售分析中心',
             code: 'SAL',
             icon: 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z',
             children: [
-                { key: 'sales-overview', href: 'sales-center.html', label: '销售分析总览' },
-                { key: 'sales-industry', href: 'sales-industry.html', label: '行业经营分析表' },
-                { key: 'sales-rep', href: 'sales-rep.html', label: '业务员目标管理表' }
+                { key: 'sales-overview', href: 'sales/sales-center.html', label: '销售分析总览' },
+                { key: 'sales-industry', href: 'sales/sales-industry.html', label: '行业经营分析表' },
+                { key: 'sales-rep', href: 'sales/sales-rep.html', label: '业务员目标管理表' }
             ]
         },
         {
             key: 'rd',
-            href: 'rd-center.html',
+            href: 'rd/rd-center.html',
             label: '研发分析中心',
             code: 'R&D',
             icon: 'M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z'
         },
         {
             key: 'production',
-            href: 'production-center.html',
+            href: 'production/production-center.html',
             label: '生产分析中心',
             code: 'PRO',
             icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4',
             children: [
-                { key: 'prod-delivery', href: 'production-center.html', label: '生产与交付' },
-                { key: 'prod-inv', href: 'inventory-center.html', label: '库存管理' },
-                { key: 'prod-quality', href: 'quality-center.html', label: '质量管控' },
-                { key: 'prod-purch', href: 'procurement-center.html', label: '采购与供应商' },
-                { key: 'prod-equip', href: 'equipment-center.html', label: '设备与能耗' }
+                { key: 'prod-delivery', href: 'production/production-center.html', label: '生产与交付' },
+                { key: 'prod-inv', href: 'supply-chain/inventory-center.html', label: '库存管理' },
+                { key: 'prod-quality', href: 'production/quality-center.html', label: '质量管控' },
+                { key: 'prod-purch', href: 'supply-chain/procurement-center.html', label: '采购与供应商' },
+                { key: 'prod-equip', href: 'production/equipment-center.html', label: '设备与能耗' }
             ]
         },
         {
             key: 'project',
-            href: 'project-center.html',
+            href: 'project/project-center.html',
             label: '项目分析中心',
             code: 'PRJ',
             icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01'
         },
         {
             key: 'task',
-            href: 'task-center.html',
+            href: 'project/task-center.html',
             label: '任务分析中心',
             code: 'TSK',
             icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4'
         },
         {
             key: 'finance',
-            href: 'finance-center.html',
+            href: 'finance/finance-center.html',
             label: '财务分析中心',
             code: 'FIN',
             icon: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
         },
         {
             key: 'target',
-            href: 'target-entry.html',
+            href: 'target/target-entry.html',
             label: '目标填报中心',
             code: 'TGT',
             icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4',
             children: [
-                { key: 'target-entry', href: 'target-entry.html', label: '目标填报' },
-                { key: 'actual-entry', href: 'actual-entry.html', label: '实际数据' },
-                { key: 'finance-entry', href: 'finance-entry.html', label: '财务指标' }
+                { key: 'target-entry', href: 'target/target-entry.html', label: '目标填报' },
+                { key: 'actual-entry', href: 'target/actual-entry.html', label: '实际数据' },
+                { key: 'finance-entry', href: 'finance/finance-entry.html', label: '财务指标' }
             ]
         },
         {
             key: 'mdm',
-            href: 'mdm-center.html',
+            href: 'mdm/mdm-center.html',
             label: '主数据管理',
             code: 'MDM',
             icon: 'M4 6h16M4 12h16M4 18h16'
@@ -101,9 +112,12 @@ var BDLayout = (function () {
         var el = document.getElementById('sidebar');
         if (!el) return;
 
+        var base = getBasePath();
+        var currentFile = window.location.pathname.replace(/\\/g, '/').split('/').pop();
+
         var html = '' +
             '<!-- Logo -->' +
-            '<div class="sidebar-logo-wrap p-4 cursor-pointer hover:bg-black/5 transition-all" onclick="window.location.href=\'index.html\'" title="点击返回门户工作台">' +
+            '<div class="sidebar-logo-wrap p-4 cursor-pointer hover:bg-black/5 transition-all" onclick="window.location.href=\'' + base + 'index.html\'" title="点击返回门户工作台">' +
                 '<div class="flex items-center gap-3">' +
                     '<div class="logo-square w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-[rgba(0,87,184,0.22)] shadow-sm">' +
                         '<span class="font-black text-base tracking-tight text-[#0057B8]">BI</span>' +
@@ -117,7 +131,7 @@ var BDLayout = (function () {
             '<!-- 导航菜单 -->' +
             '<nav class="p-2.5 flex-1 overflow-y-auto space-y-1">' +
                 '<!-- 返回门户入口 -->' +
-                '<a href="index.html" class="nav-item mb-2.5 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-[#0057B8] bg-[#0057B8]/8 hover:bg-[#0057B8]/15 border border-[#0057B8]/20 transition-all">' +
+                '<a href="' + base + 'index.html" class="nav-item mb-2.5 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-[#0057B8] bg-[#0057B8]/8 hover:bg-[#0057B8]/15 border border-[#0057B8]/20 transition-all">' +
                     '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
                         '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>' +
                     '</span>' +
@@ -131,7 +145,7 @@ var BDLayout = (function () {
 
             if (isGroup) {
                 item.children.forEach(function (sub) {
-                    if (sub.key === activeKey || sub.href === window.location.pathname.split('/').pop()) {
+                    if (sub.key === activeKey || sub.href.split('/').pop() === currentFile) {
                         isChildActive = true;
                     }
                 });
@@ -140,8 +154,8 @@ var BDLayout = (function () {
             var groupExpanded = isParentActive || isChildActive;
 
             if (!isGroup) {
-                var isActive = (item.key === activeKey || item.href === window.location.pathname.split('/').pop());
-                html += '<a href="' + item.href + '" class="nav-item ' + (isActive ? 'active' : '') + ' flex items-center gap-3 px-3 py-2.5 rounded-r text-sm">' +
+                var isActive = (item.key === activeKey || item.href.split('/').pop() === currentFile);
+                html += '<a href="' + base + item.href + '" class="nav-item ' + (isActive ? 'active' : '') + ' flex items-center gap-3 px-3 py-2.5 rounded-r text-sm">' +
                     '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
                         '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + item.icon + '"/></svg>' +
                     '</span>' +
@@ -150,7 +164,7 @@ var BDLayout = (function () {
                 '</a>';
             } else {
                 html += '<div class="nav-group ' + (groupExpanded ? 'expanded active' : '') + '">' +
-                    '<a href="' + item.href + '" class="nav-item ' + (isParentActive && !isChildActive ? 'active' : '') + ' flex items-center justify-between px-3 py-2.5 rounded-r text-sm">' +
+                    '<a href="' + base + item.href + '" class="nav-item ' + (isParentActive && !isChildActive ? 'active' : '') + ' flex items-center justify-between px-3 py-2.5 rounded-r text-sm">' +
                         '<div class="flex items-center gap-3 flex-1 overflow-hidden">' +
                             '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
                                 '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + item.icon + '"/></svg>' +
@@ -165,8 +179,8 @@ var BDLayout = (function () {
                     '<div class="nav-sub-menu pl-8 pr-1 space-y-1 py-1 ' + (groupExpanded ? '' : 'hidden') + '">';
 
                 item.children.forEach(function (sub) {
-                    var isSubMatch = (sub.key === activeKey || sub.href === window.location.pathname.split('/').pop());
-                    html += '<a href="' + sub.href + '" class="nav-sub-item ' + (isSubMatch ? 'active' : '') + ' flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-[#6B7A94] hover:text-[#0057B8] hover:bg-[rgba(0,87,184,0.06)] transition-all">' +
+                    var isSubMatch = (sub.key === activeKey || sub.href.split('/').pop() === currentFile);
+                    html += '<a href="' + base + sub.href + '" class="nav-sub-item ' + (isSubMatch ? 'active' : '') + ' flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-[#6B7A94] hover:text-[#0057B8] hover:bg-[rgba(0,87,184,0.06)] transition-all">' +
                         '<span>' + sub.label + '</span>' +
                         (isSubMatch ? '<span class="w-1.5 h-1.5 rounded-full bg-[#0057B8]"></span>' : '') +
                     '</a>';

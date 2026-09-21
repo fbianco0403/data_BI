@@ -385,7 +385,8 @@ var BaodeFinanceStore = (function () {
 
         downloadTemplate: function () {
             if (typeof XLSX === 'undefined') {
-                window.location.href = 'assets/templates/财务指标填报模板_v1.0.xlsx';
+                var prefix = window.location.pathname.replace(/\\/g, '/').indexOf('/finance/') !== -1 ? '../' : '';
+                window.location.href = prefix + 'assets/templates/财务指标填报模板_v1.0.xlsx';
                 return;
             }
 
