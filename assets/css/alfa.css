@@ -737,6 +737,10 @@ tr:hover td { background: rgba(0, 87, 184, 0.03); }
     pointer-events: auto;
     transform: scale(1);
 }
+/* 展开态下隐藏边缘胶囊，避免与顶部 [<<] 按钮并排重复 */
+.sidebar:not(.collapsed) .sidebar-toggle-edge {
+    display: none !important;
+}
 .sidebar-toggle-edge:hover {
     background: #0057B8;
     color: #FFFFFF;
