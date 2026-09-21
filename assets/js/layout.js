@@ -8,8 +8,8 @@ var BDLayout = (function () {
     var currentSysYear = baseYear;
     var currentSysMonth = 9; // 经营平台当期标准默认：2026年 9月
 
-    var selectedYear = 2026;
-    var selectedMonth = 9; // 默认 9月
+    var selectedYear = parseInt(sessionStorage.getItem('bd_selected_year')) || 2026;
+    var selectedMonth = parseInt(sessionStorage.getItem('bd_selected_month')) || 9; // 默认 9月
 
     var availableYears = [currentSysYear, currentSysYear - 1, currentSysYear - 2];
 
@@ -112,6 +112,13 @@ var BDLayout = (function () {
         var el = document.getElementById('sidebar');
         if (!el) return;
 
+        var isCollapsed = sessionStorage.getItem('bd_sidebar_collapsed') === 'true';
+        if (isCollapsed) {
+            el.classList.add('collapsed');
+        } else {
+            el.classList.remove('collapsed');
+        }
+
         var base = getBasePath();
         var currentFile = window.location.pathname.replace(/\\/g, '/').split('/').pop();
 
@@ -119,19 +126,19 @@ var BDLayout = (function () {
             '<!-- Logo -->' +
             '<div class="sidebar-logo-wrap p-4 cursor-pointer hover:bg-black/5 transition-all" onclick="window.location.href=\'' + base + 'index.html\'" title="点击返回门户工作台">' +
                 '<div class="flex items-center gap-3">' +
-                    '<div class="logo-square w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-[rgba(0,87,184,0.22)] shadow-sm">' +
+                    '<div class="logo-square w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-[rgba(0,87,184,0.22)] shadow-sm flex-shrink-0">' +
                         '<span class="font-black text-base tracking-tight text-[#0057B8]">BI</span>' +
                     '</div>' +
-                    '<div>' +
-                        '<div class="font-bold text-sm leading-tight text-[#1A2332]">宝得经营平台</div>' +
-                        '<div class="text-[9.5px] mt-0.5 tracking-wider font-semibold text-[#6B7A94] uppercase">BAODE PLATFORM</div>' +
+                    '<div class="sidebar-logo-text overflow-hidden">' +
+                        '<div class="font-bold text-sm leading-tight text-[#1A2332] whitespace-nowrap">宝得经营平台</div>' +
+                        '<div class="text-[9.5px] mt-0.5 tracking-wider font-semibold text-[#6B7A94] uppercase whitespace-nowrap">BAODE PLATFORM</div>' +
                     '</div>' +
                 '</div>' +
             '</div>' +
             '<!-- 导航菜单 -->' +
             '<nav class="p-2.5 flex-1 overflow-y-auto space-y-1">' +
                 '<!-- 返回门户入口 -->' +
-                '<a href="' + base + 'index.html" class="nav-item mb-2.5 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-[#0057B8] bg-[#0057B8]/8 hover:bg-[#0057B8]/15 border border-[#0057B8]/20 transition-all">' +
+                '<a href="' + base + 'index.html" data-title="返回门户大厅" class="nav-item mb-2.5 flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold text-[#0057B8] bg-[#0057B8]/8 hover:bg-[#0057B8]/15 border border-[#0057B8]/20 transition-all" title="返回门户大厅">' +
                     '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
                         '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>' +
                     '</span>' +
@@ -155,7 +162,7 @@ var BDLayout = (function () {
 
             if (!isGroup) {
                 var isActive = (item.key === activeKey || item.href.split('/').pop() === currentFile);
-                html += '<a href="' + base + item.href + '" class="nav-item ' + (isActive ? 'active' : '') + ' flex items-center gap-3 px-3 py-2.5 rounded-r text-sm">' +
+                html += '<a href="' + base + item.href + '" data-title="' + item.label + '" class="nav-item ' + (isActive ? 'active' : '') + ' flex items-center gap-3 px-3 py-2.5 rounded-r text-sm" title="' + item.label + '">' +
                     '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
                         '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + item.icon + '"/></svg>' +
                     '</span>' +
@@ -164,7 +171,7 @@ var BDLayout = (function () {
                 '</a>';
             } else {
                 html += '<div class="nav-group ' + (groupExpanded ? 'expanded active' : '') + '">' +
-                    '<a href="' + base + item.href + '" class="nav-item ' + (isParentActive && !isChildActive ? 'active' : '') + ' flex items-center justify-between px-3 py-2.5 rounded-r text-sm">' +
+                    '<a href="' + base + item.href + '" data-title="' + item.label + '" class="nav-item ' + (isParentActive && !isChildActive ? 'active' : '') + ' flex items-center justify-between px-3 py-2.5 rounded-r text-sm" title="' + item.label + '">' +
                         '<div class="flex items-center gap-3 flex-1 overflow-hidden">' +
                             '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
                                 '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + item.icon + '"/></svg>' +
@@ -180,7 +187,7 @@ var BDLayout = (function () {
 
                 item.children.forEach(function (sub) {
                     var isSubMatch = (sub.key === activeKey || sub.href.split('/').pop() === currentFile);
-                    html += '<a href="' + base + sub.href + '" class="nav-sub-item ' + (isSubMatch ? 'active' : '') + ' flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-[#6B7A94] hover:text-[#0057B8] hover:bg-[rgba(0,87,184,0.06)] transition-all">' +
+                    html += '<a href="' + base + sub.href + '" data-title="' + sub.label + '" class="nav-sub-item ' + (isSubMatch ? 'active' : '') + ' flex items-center justify-between px-2.5 py-1.5 rounded-md text-xs text-[#6B7A94] hover:text-[#0057B8] hover:bg-[rgba(0,87,184,0.06)] transition-all" title="' + sub.label + '">' +
                         '<span>' + sub.label + '</span>' +
                         (isSubMatch ? '<span class="w-1.5 h-1.5 rounded-full bg-[#0057B8]"></span>' : '') +
                     '</a>';
@@ -190,7 +197,17 @@ var BDLayout = (function () {
             }
         });
 
-        html += '</nav>';
+        html += '</nav>' +
+            '<!-- 侧边栏底部折叠切换按钮 -->' +
+            '<div class="p-2.5 border-t border-[rgba(26,35,50,0.06)] flex-shrink-0">' +
+                '<button type="button" onclick="BDLayout.toggleCollapse()" class="collapse-btn w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-[#6B7A94] hover:text-[#0057B8] hover:bg-[#0057B8]/8 transition-all cursor-pointer" title="收起 / 展开侧边栏">' +
+                    '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
+                        '<svg class="w-4 h-4 transition-transform duration-200" id="collapseChevron" style="' + (isCollapsed ? 'transform: rotate(180deg);' : '') + '" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>' +
+                    '</span>' +
+                    '<span class="flex-1 text-left collapse-text whitespace-nowrap">' + (isCollapsed ? '展开' : '收起侧栏') + '</span>' +
+                '</button>' +
+            '</div>';
+
         el.innerHTML = html;
     }
 
@@ -269,10 +286,30 @@ var BDLayout = (function () {
         }
     }
 
+    function toggleCollapse() {
+        var el = document.getElementById('sidebar');
+        if (!el) return;
+        var isCollapsed = el.classList.toggle('collapsed');
+        sessionStorage.setItem('bd_sidebar_collapsed', isCollapsed ? 'true' : 'false');
+        var chevron = document.getElementById('collapseChevron');
+        if (chevron) {
+            chevron.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+        var btnText = el.querySelector('.collapse-text');
+        if (btnText) {
+            btnText.innerText = isCollapsed ? '展开' : '收起侧栏';
+        }
+        setTimeout(function () {
+            window.dispatchEvent(new Event('resize'));
+        }, 180);
+    }
+
     function selectYear(yr) {
         selectedYear = parseInt(yr);
+        sessionStorage.setItem('bd_selected_year', selectedYear);
         if (selectedYear === currentSysYear && selectedMonth > currentSysMonth) {
             selectedMonth = currentSysMonth;
+            sessionStorage.setItem('bd_selected_month', selectedMonth);
         }
         var yrText = document.getElementById('currentYearText');
         if (yrText) yrText.innerText = selectedYear;
@@ -296,6 +333,7 @@ var BDLayout = (function () {
             return;
         }
         selectedMonth = mNum;
+        sessionStorage.setItem('bd_selected_month', selectedMonth);
         var mText = document.getElementById('currentMonthText');
         if (mText) mText.innerText = selectedMonth + '月';
         renderMonthDropdown();
@@ -370,8 +408,14 @@ var BDLayout = (function () {
             };
         },
         setPeriod: function (yr, m) {
-            if (yr) selectedYear = parseInt(yr);
-            if (m) selectedMonth = parseInt(m);
+            if (yr) {
+                selectedYear = parseInt(yr);
+                sessionStorage.setItem('bd_selected_year', selectedYear);
+            }
+            if (m) {
+                selectedMonth = parseInt(m);
+                sessionStorage.setItem('bd_selected_month', selectedMonth);
+            }
             renderYearDropdown();
             renderMonthDropdown();
             if (typeof window.onPeriodChange === 'function') {
@@ -381,6 +425,13 @@ var BDLayout = (function () {
                 try { window.updateMonthlyTargetChart(); } catch (e) { console.warn(e); }
             }
         },
+        getSBU: function () {
+            return sessionStorage.getItem('bd_selected_sbu') || 'ALL';
+        },
+        setSBU: function (sbu) {
+            if (sbu) sessionStorage.setItem('bd_selected_sbu', sbu);
+        },
+        toggleCollapse: toggleCollapse,
         toggleDropdown: toggleDropdown,
         selectYear: selectYear,
         selectMonth: selectMonth,

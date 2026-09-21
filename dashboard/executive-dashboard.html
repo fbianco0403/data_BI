@@ -1053,7 +1053,7 @@
 
                         <!-- 顶部：10大核心指标总览（一行铺开，紧凑密度） -->
                         <div class="sales-overview-grid">
-                            <div class="kpi-cell sales-overview-cell cursor-pointer group relative transition-all hover:ring-2 hover:ring-[#0057B8]/40 hover:shadow-md" onclick="openOrderSalesDrawer()" title="点击查看接单销售额多维分析与订单明细" style="cursor: pointer;">
+                            <div class="kpi-cell sales-overview-cell kpi-clickable group relative" onclick="openOrderSalesDrawer()" title="💡 点击穿透：查看接单销售额多维结构与明细清单">
                                 <div class="kpi-label">接单销售额</div>
                                 <div class="kpi-value sales-overview-value group-hover:text-[#0057B8] transition-colors">20,211<span class="unit">万</span></div>
                             </div>
@@ -4262,7 +4262,7 @@
             ];
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "接单销售明细");
-            XLSX.writeFile(wb, "接单销售额_明细数据清单_202609.xlsx");
+            XLSX.writeFile(wb, "宝得BI_接单销售明细_202609.xlsx");
         } else {
             // 离线容灾降级为标准 Excel HTML 格式
             var xml = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel" xmlns="http://www.w3.org/TR/REC-html40"><head><meta charset="utf-8"><!--[if gte mso 9]><xml><x:ExcelWorkbook><x:ExcelWorksheets><x:ExcelWorksheet><x:Name>接单销售明细</x:Name><x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions></x:ExcelWorksheet></x:ExcelWorksheets></x:ExcelWorkbook></xml><![endif]--></head><body><table border="1">';

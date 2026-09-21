@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -612,7 +612,7 @@
 
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "业务员目标管理表");
-            XLSX.writeFile(wb, "宝得经营平台_业务员目标管理表_" + repTitle + "_" + currentMonth + "月.xlsx");
+            XLSX.writeFile(wb, "宝得BI_业务员目标管理表_" + repTitle + "_" + currentMonth + "月.xlsx");
         } catch(e) {
             alert("导出 Excel 失败：" + e.message);
         }

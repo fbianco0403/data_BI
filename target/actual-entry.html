@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -560,7 +560,7 @@
 
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "实际数据明细");
-            XLSX.writeFile(wb, "宝得经营平台_实际数据明细清单.xlsx");
+            XLSX.writeFile(wb, "宝得BI_实际数据明细清单.xlsx");
             showToast("已成功导出实际数据明细清单 Excel！");
         } catch (err) {
             alert("导出失败：" + err.message);

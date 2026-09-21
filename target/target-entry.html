@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -1143,7 +1143,7 @@
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "目标填报");
 
-            var fileName = "宝得经营平台_年度目标明细导出_" + ver.versionNo + ".xlsx";
+            var fileName = "宝得BI_年度目标明细_" + ver.versionNo + ".xlsx";
             XLSX.writeFile(wb, fileName);
             showToast("已成功导出带原生计算公式的 Excel！在 Excel 中修改月度数值，全年汇总将实时联动求和。");
         } catch (err) {
@@ -1192,7 +1192,7 @@
             var wb = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(wb, ws, "目标填报");
 
-            var fileName = "宝得经营平台_月度目标明细导出_2026年9月.xlsx";
+            var fileName = "宝得BI_月度目标明细_2026年9月.xlsx";
             XLSX.writeFile(wb, fileName);
             showToast("已成功导出月度在手与机会 Excel！可在线下微调后重新导入核对。");
         } catch (err) {

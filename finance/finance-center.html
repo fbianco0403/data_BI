@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
@@ -313,7 +313,7 @@
             var wb = XLSX.utils.book_new();
             var titleStr = currentMonth === 'all' ? '1~9月全量' : (currentMonth + '月');
             XLSX.utils.book_append_sheet(wb, ws, "财务经营指标");
-            XLSX.writeFile(wb, "宝得经营平台_财务指标分析报表_2026年" + titleStr + ".xlsx");
+            XLSX.writeFile(wb, "宝得BI_财务指标分析_2026年" + titleStr + ".xlsx");
             showToast("已成功导出财务指标报表 (Excel)！");
         } catch (e) {
             alert("导出失败：" + e.message);
