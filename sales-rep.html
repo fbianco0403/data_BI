@@ -1,0 +1,629 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>业务员目标管理表 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        .custom-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .editable-cell:hover { background-color: #f8fafc; cursor: pointer; }
+        .dropdown-menu-floating {
+            position: absolute;
+            background: #FFFFFF !important;
+            border-radius: 12px;
+            box-shadow: 0 16px 40px rgba(26, 35, 50, 0.22), 0 0 0 1px rgba(0, 87, 184, 0.18) !important;
+            z-index: 99999 !important;
+        }
+        .month-item {
+            user-select: none;
+            transition: all 0.15s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-[#F0F2F5]">
+    <div class="flex min-h-screen">
+
+        <!-- ============== 左侧导航栏 ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <!-- ============== 主内容区 ============== -->
+        <main class="flex-1 overflow-auto">
+            <!-- 顶栏 -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5 bg-white border-b border-slate-200">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-5 bg-[#0057B8] rounded-full"></div>
+                        <span class="font-bold text-base text-[#1A2332]">销售分析中心 · 业务员目标管理表</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-4 max-w-[1720px] mx-auto space-y-3.5">
+
+                <!-- 业务员目标管理主表 (严格 1:1 对齐 Excel「业务员目标管理表」) -->
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <!-- 表头说明区 (严格还原 Excel 模板标题、业务员与月份选择) -->
+                    <div class="px-5 py-3.5 bg-gradient-to-r from-slate-50 via-white to-slate-50 border-b border-slate-200 flex items-center justify-between">
+                        <div>
+                            <h2 class="text-base font-bold text-[#1A2332]">
+                                <span>业务员目标管理表（按行业分类统计）</span>
+                            </h2>
+                            <div class="flex items-center gap-2.5 text-xs text-slate-500 mt-1 flex-wrap">
+                                <span>考核各业务员按行业的目标达成与客户开发进度</span>
+                                <span class="text-slate-300">|</span>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-semibold text-slate-700">业务员：</span>
+                                    <div class="relative">
+                                        <button id="repDropdownBtn" onclick="toggleRepDropdown(event)" type="button" class="flex items-center justify-between gap-2 min-w-[200px] px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 hover:border-[#0057B8] rounded-md shadow-sm transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                            <div class="flex items-center gap-1.5 truncate">
+                                                <svg class="w-3.5 h-3.5 text-[#0057B8] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                                                <span id="currentRepText" class="truncate text-slate-800">全部业务员 (全量汇总)</span>
+                                            </div>
+                                            <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200 flex-shrink-0" id="repChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                            </svg>
+                                        </button>
+
+                                        <!-- 业务员搜索下拉面板 -->
+                                        <div id="repDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-64 p-2.5 bg-white rounded-xl shadow-xl border border-slate-200 z-50">
+                                            <!-- 搜索框 -->
+                                            <div class="relative mb-2">
+                                                <input type="text" id="repSearchInput" oninput="filterReps(this.value)" placeholder="搜索业务员姓名..." class="w-full pl-7 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 focus:border-[#0057B8] focus:bg-white rounded-lg outline-none transition text-slate-800" autocomplete="off" />
+                                                <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+                                                </svg>
+                                                <button type="button" id="clearRepSearchBtn" onclick="clearRepSearch(event)" class="hidden absolute right-2 top-1.5 text-slate-400 hover:text-slate-600 cursor-pointer">
+                                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                                                </button>
+                                            </div>
+
+                                            <!-- 分组提示 -->
+                                            <div class="text-[10px] text-[#8A99B5] px-1 pb-1 font-semibold uppercase tracking-wider flex items-center justify-between border-b border-slate-100 mb-1">
+                                                <span>业务员名单</span>
+                                                <span class="text-[9px] text-[#0057B8]" id="repCountTip">共 3 人</span>
+                                            </div>
+
+                                            <!-- 业务员选项列表 -->
+                                            <div class="max-h-52 overflow-y-auto custom-scroll space-y-0.5 py-0.5" id="repOptionsList">
+                                                <!-- 由 JS 动态渲染 -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <span class="text-slate-300">|</span>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-semibold text-slate-700">统计月份：</span>
+                                    <div class="relative">
+                                        <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 hover:border-[#0057B8] rounded-md shadow-sm transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                            <span id="currentMonthText">9月</span>
+                                            <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                            </svg>
+                                        </button>
+
+                                        <!-- 月份下拉面板 (同驾驶舱 3列网格) -->
+                                        <div id="monthDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-48 p-2.5">
+                                            <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between border-b border-slate-100 mb-1.5">
+                                                <span>选择月份</span>
+                                                <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">1~12月全量</span>
+                                            </div>
+                                            <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs text-slate-400">
+                            <span>金额单位：<span class="font-semibold text-slate-600">万元</span></span>
+                            <button type="button" onclick="exportRepExcel()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer flex items-center gap-1 border border-slate-200" title="导出业务员目标管理表 Excel">
+                                <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                <span>导出 Excel</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 表格滚动容器 -->
+                    <div class="overflow-x-auto custom-scroll">
+                        <table class="w-full text-xs text-left border-collapse" id="repAnalysisTable">
+                            <thead>
+                                <tr class="bg-[#F4F7FA] text-[#6B7A94] text-[11px] font-bold border-b border-slate-200 uppercase tracking-wider" style="height: 36px;">
+                                    <th class="px-3 text-center border-r border-slate-200" style="width: 55px;">行次</th>
+                                    <th class="px-3 border-r border-slate-200 bg-[#F4F7FA]" style="width: 240px;">项目</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">空调制冷</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">工业制冷</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">船舶行业</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">储能行业</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">数据中心</th>
+                                    <th class="px-3 text-right bg-[#0057B8]/5 text-[#0057B8] font-bold" style="width: 160px;">合计</th>
+                                </tr>
+                            </thead>
+                            <tbody id="repTableBody" class="divide-y divide-slate-100 text-slate-700">
+                                <!-- 由 JS 动态渲染 17 行标准指标 -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 底部提示与保存状态 -->
+                    <div class="px-5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span>支持查询<b>单个业务员</b>维度明细，亦支持一键查阅<b>所有业务员全量汇总</b>数据</span>
+                        </div>
+                        <div class="text-slate-400" id="saveStatusTip">
+                            【目标客户】与【需公司支持事项】支持直接点击编辑，自动保存至当前业务员名下
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/sbu_initial_data.js"></script>
+    <script src="assets/js/sales-target-store.js"></script>
+    <script src="assets/js/layout.js"></script>
+    <script>
+    var currentRep = 'all';
+    var currentMonth = 9;
+    var industriesList = ['空调制冷', '工业制冷', '船舶行业', '储能行业', '数据中心'];
+
+    var allRepsList = [];
+
+    // 初始化业务员搜索下拉列表
+    function initRepDropdown() {
+        allRepsList = BaodeTargetStore.getDimensions().reps || ['张三', '李四', '王五'];
+        renderRepOptions('');
+    }
+
+    function renderRepOptions(keyword) {
+        var container = document.getElementById('repOptionsList');
+        if (!container) return;
+        keyword = (keyword || '').trim().toLowerCase();
+
+        var countTip = document.getElementById('repCountTip');
+        if (countTip) {
+            countTip.innerText = '共 ' + allRepsList.length + ' 位业务员';
+        }
+
+        var html = '';
+        // "全部业务员 (全量汇总)" 选项
+        var matchAll = !keyword || '全部业务员'.includes(keyword) || 'all'.includes(keyword) || '全量汇总'.includes(keyword);
+        if (matchAll) {
+            var isAllSelected = (currentRep === 'all');
+            html += '<div onclick="selectRep(\'all\')" class="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ' +
+                (isAllSelected ? 'bg-[#0057B8] text-white shadow-sm' : 'text-[#1A2332] hover:bg-[#0057B8]/10 hover:text-[#0057B8]') + '">' +
+                '<div class="flex items-center gap-1.5">' +
+                    '<span class="w-1.5 h-1.5 rounded-full ' + (isAllSelected ? 'bg-white' : 'bg-[#0057B8]') + '"></span>' +
+                    '<span>全部业务员 (全量汇总)</span>' +
+                '</div>' +
+                (isAllSelected ? '<span class="font-bold">✓</span>' : '') +
+            '</div>';
+        }
+
+        // 单个业务员选项
+        var filteredReps = allRepsList.filter(function(r) {
+            return !keyword || r.toLowerCase().includes(keyword);
+        });
+
+        if (filteredReps.length > 0) {
+            filteredReps.forEach(function(r) {
+                var isSelected = (currentRep === r);
+                html += '<div onclick="selectRep(\'' + r + '\')" class="flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-semibold cursor-pointer transition-colors ' +
+                    (isSelected ? 'bg-[#0057B8] text-white shadow-sm' : 'text-[#1A2332] hover:bg-[#0057B8]/10 hover:text-[#0057B8]') + '">' +
+                    '<div class="flex items-center gap-1.5">' +
+                        '<span class="w-1.5 h-1.5 rounded-full ' + (isSelected ? 'bg-white' : 'bg-slate-300') + '"></span>' +
+                        '<span>' + r + ' <span class="font-normal text-[11px] ' + (isSelected ? 'text-white/80' : 'text-slate-400') + '">(个人专卷)</span></span>' +
+                    '</div>' +
+                    (isSelected ? '<span class="font-bold">✓</span>' : '') +
+                '</div>';
+            });
+        } else if (!matchAll) {
+            html += '<div class="py-4 text-center text-xs text-slate-400">未找到匹配的业务员</div>';
+        }
+
+        container.innerHTML = html;
+        var btnText = document.getElementById('currentRepText');
+        if (btnText) {
+            btnText.innerText = (currentRep === 'all') ? '全部业务员 (全量汇总)' : (currentRep + ' (个人专卷)');
+        }
+    }
+
+    function toggleRepDropdown(e) {
+        if (e) e.stopPropagation();
+        var menu = document.getElementById('repDropdownMenu');
+        if (!menu) return;
+        var isHidden = menu.classList.contains('hidden');
+
+        // 先关闭月份下拉
+        var monthMenu = document.getElementById('monthDropdownMenu');
+        if (monthMenu) monthMenu.classList.add('hidden');
+        var monthChevron = document.getElementById('monthChevron');
+        if (monthChevron) monthChevron.style.transform = 'rotate(0deg)';
+
+        var repChevron = document.getElementById('repChevron');
+        if (isHidden) {
+            menu.classList.remove('hidden');
+            if (repChevron) repChevron.style.transform = 'rotate(180deg)';
+            var input = document.getElementById('repSearchInput');
+            if (input) {
+                input.value = '';
+                renderRepOptions('');
+                setTimeout(function() { input.focus(); }, 50);
+            }
+        } else {
+            menu.classList.add('hidden');
+            if (repChevron) repChevron.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    function filterReps(val) {
+        renderRepOptions(val);
+        var clearBtn = document.getElementById('clearRepSearchBtn');
+        if (clearBtn) {
+            if (val && val.length > 0) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+        }
+    }
+
+    function clearRepSearch(e) {
+        if (e) e.stopPropagation();
+        var input = document.getElementById('repSearchInput');
+        if (input) {
+            input.value = '';
+            input.focus();
+        }
+        filterReps('');
+    }
+
+    function selectRep(val) {
+        currentRep = val;
+        var menu = document.getElementById('repDropdownMenu');
+        if (menu) menu.classList.add('hidden');
+        var repChevron = document.getElementById('repChevron');
+        if (repChevron) repChevron.style.transform = 'rotate(0deg)';
+
+        var btnText = document.getElementById('currentRepText');
+        if (btnText) {
+            btnText.innerText = (val === 'all') ? '全部业务员 (全量汇总)' : (val + ' (个人专卷)');
+        }
+        var subRepEl = document.getElementById('subHeaderRep');
+        if (subRepEl) subRepEl.innerText = (val === 'all') ? '全部业务员' : val;
+
+        renderRepOptions('');
+        renderRepAnalysisView();
+    }
+
+    // 重点工作文本存储 (按业务员和月份隔离)
+    function getStoredRepNotes(rep, month) {
+        var key = 'BAODE_REP_NOTES_' + rep + '_' + month;
+        var defaultNotes = {
+            r12: {
+                '空调制冷': '格力电器、美的暖通事业部、海尔商用中央空调',
+                '工业制冷': '大冷股份、烟台冰轮、雪人股份',
+                '船舶行业': '上海外高桥造船、江南造船、大连船舶重工',
+                '储能行业': '宁德时代储能集成、比亚迪储能、阳光电源',
+                '数据中心': '阿里云算力中心、华为数字能源、秦淮数据',
+                '合计': '主攻行业 Top3 标杆头部大客户与设计院所'
+            },
+            r15: {
+                '空调制冷': '协调钎焊炉旺季排产优先级，确保大客户框架订单准时出货',
+                '工业制冷': '需技术部针对低温冷冻大口径法兰接口提供非标选型核算',
+                '船舶行业': '需商务法务团队配合船厂格式合同中的履约质保条款审核',
+                '储能行业': '需快速打样专线支持储能液冷专用接口的试装验证',
+                '数据中心': '需总经理室协调重点大客户研发总院技术交流峰会',
+                '合计': '产销研高度协同，定期复盘大客户攻坚与交期瓶颈'
+            }
+        };
+
+        try {
+            var raw = localStorage.getItem(key);
+            if (raw) {
+                var parsed = JSON.parse(raw);
+                if (!parsed.r12 && parsed.r14) parsed.r12 = parsed.r14;
+                if (!parsed.r15 && parsed.r17) parsed.r15 = parsed.r17;
+                return parsed;
+            }
+        } catch(e){}
+        return defaultNotes;
+    }
+
+    function saveRepNoteCell(rowKey, ind, val) {
+        var notes = getStoredRepNotes(currentRep, currentMonth);
+        if (!notes[rowKey]) notes[rowKey] = {};
+        notes[rowKey][ind] = val;
+        try {
+            localStorage.setItem('BAODE_REP_NOTES_' + currentRep + '_' + currentMonth, JSON.stringify(notes));
+            var tip = document.getElementById('saveStatusTip');
+            if (tip) {
+                tip.innerHTML = '<span class="text-emerald-600 font-semibold">✓ 重点工作内容已自动保存 (' + new Date().toLocaleTimeString() + ')</span>';
+            }
+        } catch(e){}
+    }
+
+    var sysNow = new Date();
+    var currentSysMonth = sysNow.getMonth() + 1;
+
+    function renderMonthDropdown() {
+        var grid = document.getElementById('monthOptionsGrid');
+        if (!grid) return;
+        var html = '';
+        var tipEl = document.getElementById('monthLimitTip');
+        if (tipEl) {
+            tipEl.innerText = '当期最多至' + currentSysMonth + '月';
+        }
+        for (var m = 1; m <= 12; m++) {
+            var isFuture = (m > currentSysMonth);
+            var isSelected = (m === currentMonth);
+            var label = m + '月';
+            if (isFuture) {
+                html += '<div class="month-item text-center py-1.5 rounded-lg text-xs font-medium text-[#94A3B8] bg-slate-100/70 cursor-not-allowed select-none opacity-40" title="未来月份尚未发生，不可查询">' + label + '</div>';
+            } else if (isSelected) {
+                html += '<div class="month-item text-center py-1.5 rounded-lg text-xs font-bold bg-[#0057B8] text-white cursor-pointer shadow-sm" onclick="selectMonth(' + m + ')">' + label + '</div>';
+            } else {
+                html += '<div class="month-item text-center py-1.5 rounded-lg text-xs font-semibold text-[#1A2332] hover:bg-[#0057B8]/10 hover:text-[#0057B8] cursor-pointer" onclick="selectMonth(' + m + ')">' + label + '</div>';
+            }
+        }
+        grid.innerHTML = html;
+        var mText = document.getElementById('currentMonthText');
+        if (mText) mText.innerText = currentMonth + '月';
+    }
+
+    function toggleDropdown(menuId, e) {
+        if (e) e.stopPropagation();
+        var menu = document.getElementById(menuId);
+        if (!menu) return;
+        var isHidden = menu.classList.contains('hidden');
+
+        // 先关闭业务员下拉
+        var repMenu = document.getElementById('repDropdownMenu');
+        if (repMenu) repMenu.classList.add('hidden');
+        var repChevron = document.getElementById('repChevron');
+        if (repChevron) repChevron.style.transform = 'rotate(0deg)';
+
+        var chevron = document.getElementById('monthChevron');
+        if (isHidden) {
+            menu.classList.remove('hidden');
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+            renderMonthDropdown();
+        } else {
+            menu.classList.add('hidden');
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    function selectMonth(m) {
+        var mNum = parseInt(m) || 9;
+        if (mNum > currentSysMonth) return; // 禁用未来月份
+        currentMonth = mNum;
+        var menu = document.getElementById('monthDropdownMenu');
+        if (menu) menu.classList.add('hidden');
+        var chevron = document.getElementById('monthChevron');
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+        renderMonthDropdown();
+        renderRepAnalysisView();
+    }
+
+    document.addEventListener('click', function(e) {
+        // 月份浮层
+        var menu = document.getElementById('monthDropdownMenu');
+        var btn = document.getElementById('monthDropdownBtn');
+        if (menu && !menu.classList.contains('hidden')) {
+            if (!(btn && (btn === e.target || btn.contains(e.target))) && !menu.contains(e.target)) {
+                menu.classList.add('hidden');
+                var chevron = document.getElementById('monthChevron');
+                if (chevron) chevron.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // 业务员浮层
+        var repMenu = document.getElementById('repDropdownMenu');
+        var repBtn = document.getElementById('repDropdownBtn');
+        if (repMenu && !repMenu.classList.contains('hidden')) {
+            if (!(repBtn && (repBtn === e.target || repBtn.contains(e.target))) && !repMenu.contains(e.target)) {
+                repMenu.classList.add('hidden');
+                var repChevron = document.getElementById('repChevron');
+                if (repChevron) repChevron.style.transform = 'rotate(0deg)';
+            }
+        }
+    });
+
+    function renderRepAnalysisView() {
+        var dataObj = BaodeTargetStore.getSalesRepAnalysisMatrix(currentRep, currentMonth);
+        var matrix = dataObj.matrix;
+        var notes = getStoredRepNotes(currentRep, currentMonth);
+
+        // 渲染主表 15 行 (严格 1:1 对齐最新 Excel「业务员目标管理表」)
+        var tbody = document.getElementById('repTableBody');
+        var html = '';
+
+        function fmtAmt(val) {
+            if (val === undefined || val === null || isNaN(val)) return '-';
+            return Math.round(val).toLocaleString();
+        }
+        function fmtRate(val) {
+            if (val === undefined || val === null || isNaN(val) || val === 0) return '0.0%';
+            return (val * 100).toFixed(1) + '%';
+        }
+
+        function buildSectionHeader(title) {
+            return '<tr class="bg-[#F0F4F9] border-y border-slate-200">' +
+                '<td colspan="8" class="px-4 py-2 text-left bg-[#F0F4F9]">' +
+                    '<div class="flex items-center gap-2">' +
+                        '<span class="w-1.5 h-3.5 bg-[#0057B8] rounded-full inline-block flex-shrink-0"></span>' +
+                        '<span class="font-bold text-xs text-[#0057B8] tracking-wider whitespace-nowrap">' + title + '</span>' +
+                    '</div>' +
+                '</td>' +
+            '</tr>';
+        }
+
+        function buildMetricRow(rowIdx, rowTitle, valExtractor, isRate) {
+            var rowHtml = '<tr class="hover:bg-slate-50/80 transition-colors" style="height: 32px;">' +
+                '<td class="px-3 text-center text-slate-400 font-mono border-r border-slate-200/60">' + rowIdx + '</td>' +
+                '<td class="px-3 font-medium text-slate-800 border-r border-slate-200/60 bg-white">' + rowTitle + '</td>';
+
+            industriesList.forEach(function(ind) {
+                var d = matrix[ind] || {};
+                var rawVal = valExtractor(d);
+                var formatted = isRate ? fmtRate(rawVal) : fmtAmt(rawVal);
+                rowHtml += '<td class="px-3 text-right font-mono border-r border-slate-200/60">' + formatted + '</td>';
+            });
+
+            // 合计列
+            var totData = matrix['合计'] || {};
+            var totRaw = valExtractor(totData);
+            var totFormatted = isRate ? fmtRate(totRaw) : fmtAmt(totRaw);
+            rowHtml += '<td class="px-3 text-right font-mono font-bold bg-slate-50/60 text-[#0057B8]">' + totFormatted + '</td>';
+            rowHtml += '</tr>';
+            return rowHtml;
+        }
+
+        function handleRepNoteChange(el) {
+            var rowKey = el.getAttribute('data-row');
+            var ind = el.getAttribute('data-ind');
+            saveRepNoteCell(rowKey, ind, el.value);
+        }
+
+        function buildTextRow(rowIdx, rowTitle, rowKey) {
+            var rowHtml = '<tr class="hover:bg-slate-50/80 transition-colors bg-white">' +
+                '<td class="px-3 py-2 text-center text-slate-400 font-mono border-r border-slate-200/60 align-top">' + rowIdx + '</td>' +
+                '<td class="px-3 py-2 font-medium text-slate-800 border-r border-slate-200/60 bg-white align-top">' + rowTitle + '</td>';
+
+            industriesList.forEach(function(ind) {
+                var textVal = (notes[rowKey] && notes[rowKey][ind]) || '';
+                rowHtml += '<td class="px-2 py-1.5 border-r border-slate-200/60 align-top">' +
+                    '<textarea data-row="' + rowKey + '" data-ind="' + ind + '" onchange="handleRepNoteChange(this)" class="w-full text-xs text-slate-700 bg-slate-50/50 hover:bg-white focus:bg-white border border-transparent hover:border-slate-200 focus:border-[#0057B8] rounded p-1.5 transition resize-none leading-relaxed" rows="2">' + textVal + '</textarea>' +
+                '</td>';
+            });
+
+            var totText = (notes[rowKey] && notes[rowKey]['合计']) || '';
+            rowHtml += '<td class="px-2 py-1.5 bg-slate-50/60 align-top">' +
+                '<textarea data-row="' + rowKey + '" data-ind="合计" onchange="handleRepNoteChange(this)" class="w-full text-xs font-medium text-[#0057B8] bg-white/70 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0057B8] rounded p-1.5 transition resize-none leading-relaxed" rows="2">' + totText + '</textarea>' +
+            '</td>';
+
+            rowHtml += '</tr>';
+            return rowHtml;
+        }
+
+        // 模块一：年度目标 (行 1~3)
+        html += buildSectionHeader('一、年度目标');
+        html += buildMetricRow(1, '年度销售额目标', function(d){ return d.annualSalesTarget; }, false);
+        html += buildMetricRow(2, '年度毛利目标', function(d){ return d.annualMarginTarget; }, false);
+        html += buildMetricRow(3, '年度毛利率目标', function(d){ return d.annualMarginRate; }, true);
+
+        // 模块二：当期达成 (行 4~7)
+        html += buildSectionHeader('二、当期达成（本月）');
+        html += buildMetricRow(4, '本月销售额', function(d){ return d.curSales; }, false);
+        html += buildMetricRow(5, '本月毛利', function(d){ return d.curMargin; }, false);
+        html += buildMetricRow(6, '本月毛利率', function(d){ return d.curMarginRate; }, true);
+        html += buildMetricRow(7, '本月目标达成率', function(d){ return d.curSalesAchv; }, true);
+
+        // 模块三：全年累计达成 (行 8~11)
+        html += buildSectionHeader('三、全年累计达成（1-X月）');
+        html += buildMetricRow(8, '累计销售额', function(d){ return d.cumSales; }, false);
+        html += buildMetricRow(9, '累计毛利', function(d){ return d.cumMargin; }, false);
+        html += buildMetricRow(10, '累计毛利率', function(d){ return d.cumMarginRate; }, true);
+        html += buildMetricRow(11, '累计达成率', function(d){ return d.cumSalesAchv; }, true);
+
+        // 模块四：重点工作 (行 12~15)
+        html += buildSectionHeader('四、重点工作');
+        html += buildTextRow(12, '目标客户', 'r12');
+        html += buildMetricRow(13, '已接单未生产', function(d){ return d.onhandAct; }, false);
+        html += buildMetricRow(14, '重点机会', function(d){ return d.oppAct; }, false);
+        html += buildTextRow(15, '需公司支持事项', 'r15');
+
+        tbody.innerHTML = html;
+    }
+
+    // 导出 Excel 功能
+    function exportRepExcel() {
+        try {
+            var dataObj = BaodeTargetStore.getSalesRepAnalysisMatrix(currentRep, currentMonth);
+            var matrix = dataObj.matrix;
+            var notes = getStoredRepNotes(currentRep, currentMonth);
+            var repTitle = (currentRep === 'all') ? '全部业务员汇总' : currentRep;
+
+            var header1 = ["业务员目标管理表（按行业分类统计）", "", "", "", "", "", "", ""];
+            var header2 = ["考核各业务员按行业的目标达成与客户开发进度", "", "", "业务员：", repTitle, "统计月份：", currentMonth, ""];
+            var header3 = ["行次", "项目", "空调制冷", "工业制冷", "船舶行业", "储能行业", "数据中心", "合计"];
+
+            var aoa = [header1, header2, header3];
+
+            function addSection(title) {
+                aoa.push([title, "", "", "", "", "", "", ""]);
+            }
+
+            function addMetric(idx, name, fn, isRate) {
+                var row = [idx, name];
+                industriesList.forEach(function(ind){
+                    var v = fn(matrix[ind] || {});
+                    row.push(isRate ? (v ? +(v * 100).toFixed(2) : 0) : Math.round(v));
+                });
+                var totV = fn(matrix['合计'] || {});
+                row.push(isRate ? (totV ? +(totV * 100).toFixed(2) : 0) : Math.round(totV));
+                aoa.push(row);
+            }
+
+            function addText(idx, name, key) {
+                var row = [idx, name];
+                industriesList.forEach(function(ind){
+                    row.push((notes[key] && notes[key][ind]) || "");
+                });
+                row.push((notes[key] && notes[key]['合计']) || "");
+                aoa.push(row);
+            }
+
+            addSection("一、年度目标");
+            addMetric(1, "年度销售额目标", function(d){ return d.annualSalesTarget; }, false);
+            addMetric(2, "年度毛利目标", function(d){ return d.annualMarginTarget; }, false);
+            addMetric(3, "年度毛利率目标", function(d){ return d.annualMarginRate; }, true);
+
+            addSection("二、当期达成（本月）");
+            addMetric(4, "本月销售额", function(d){ return d.curSales; }, false);
+            addMetric(5, "本月毛利", function(d){ return d.curMargin; }, false);
+            addMetric(6, "本月毛利率", function(d){ return d.curMarginRate; }, true);
+            addMetric(7, "本月目标达成率", function(d){ return d.curSalesAchv; }, true);
+
+            addSection("三、全年累计达成（1-X月）");
+            addMetric(8, "累计销售额", function(d){ return d.cumSales; }, false);
+            addMetric(9, "累计毛利", function(d){ return d.cumMargin; }, false);
+            addMetric(10, "累计毛利率", function(d){ return d.cumMarginRate; }, true);
+            addMetric(11, "累计达成率", function(d){ return d.cumSalesAchv; }, true);
+
+            addSection("四、重点工作");
+            addText(12, "目标客户", "r12");
+            addMetric(13, "已接单未生产", function(d){ return d.onhandAct; }, false);
+            addMetric(14, "重点机会", function(d){ return d.oppAct; }, false);
+            addText(15, "需公司支持事项", "r15");
+
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [
+                { wch: 8 }, { wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }
+            ];
+
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "业务员目标管理表");
+            XLSX.writeFile(wb, "宝得经营平台_业务员目标管理表_" + repTitle + "_" + currentMonth + "月.xlsx");
+        } catch(e) {
+            alert("导出 Excel 失败：" + e.message);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        BDLayout.render({ active: 'sales-rep', title: '业务员目标管理表' });
+        initRepDropdown();
+        renderMonthDropdown();
+        renderRepAnalysisView();
+    });
+    </script>
+</body>
+</html>

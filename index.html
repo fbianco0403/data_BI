@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>宝得经营平台 - 经营分析门户 (BI Portal)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Roboto', 'AlfaLaval', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            box-sizing: border-box;
+        }
+
+        :root {
+            /* 柔和蓝调工业风 · 基于阿法拉伐工业色板 */
+            --bg-white: #F4F7FA;
+            --brand-blue: #0057B8;
+            --brand-blue-600: #00479A;
+            --brand-blue-500: #0064D8;
+            --brand-cyan: #00B2E3;
+            --brand-green: #8DC63F;
+            --brand-green-600: #75AB30;
+            --brand-orange: #E87722;
+            --brand-purple: #7C3AED;
+            --brand-navy: #1E293B;
+
+            /* 文字体系 */
+            --text-charcoal: #1A2332;
+            --text-graphite: #2C3A4F;
+            --text-slate: #4A5870;
+            --text-steel: #6B7A94;
+            --text-muted: #8A99B5;
+
+            /* 边框与阴影 */
+            --border-light: rgba(26, 35, 50, 0.08);
+            --border-card: rgba(255, 255, 255, 0.85);
+            --card-shadow: 0 4px 20px rgba(26, 35, 50, 0.06);
+            --card-shadow-hover: 0 16px 36px rgba(0, 87, 184, 0.14);
+        }
+
+        /* ========== 背景：柔和天蓝→钢蓝→浅灰蓝 复合渐变与双向金属拉丝 ========== */
+        html, body {
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            color: var(--text-charcoal);
+            background:
+                repeating-linear-gradient(
+                    90deg,
+                    transparent 0px,
+                    rgba(26, 35, 50, 0.015) 1px,
+                    transparent 2px,
+                    transparent 5px
+                ),
+                repeating-linear-gradient(
+                    0deg,
+                    transparent 0px,
+                    rgba(26, 35, 50, 0.006) 1px,
+                    transparent 2px,
+                    transparent 4px
+                ),
+                radial-gradient(
+                    ellipse 130% 90% at 30% 0%,
+                    #A8C5DD 0%,
+                    #B5CEE0 25%,
+                    #C2D8E5 50%,
+                    #CDDFE8 75%,
+                    #D5E3EC 100%
+                );
+            background-attachment: fixed;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background:
+                radial-gradient(ellipse 80% 40% at 70% -10%, rgba(0, 87, 184, 0.08), transparent 60%),
+                radial-gradient(ellipse 60% 30% at 10% 100%, rgba(141, 198, 63, 0.06), transparent 60%);
+        }
+
+        /* ========== 顶栏 ========== */
+        .portal-header {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: rgba(255, 255, 255, 0.78);
+            backdrop-filter: blur(20px) saturate(120%);
+            -webkit-backdrop-filter: blur(20px) saturate(120%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.75);
+            box-shadow: 0 4px 20px rgba(26, 35, 50, 0.05);
+        }
+        .portal-header::after {
+            content: '';
+            position: absolute;
+            left: 0; right: 0; bottom: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent 0%, rgba(0, 87, 184, 0.3) 30%, rgba(0, 178, 227, 0.3) 70%, transparent 100%);
+        }
+
+        /* 脉冲圆点 */
+        .pulse-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22C55E;
+            box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
+            animation: pulse-ring 2s infinite;
+        }
+        @keyframes pulse-ring {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        /* 时间切换胶囊容器 */
+        .time-pill-group {
+            display: inline-flex;
+            background: rgba(26, 35, 50, 0.05);
+            border-radius: 9999px;
+            padding: 3px;
+            border: 1px solid rgba(26, 35, 50, 0.06);
+        }
+
+        /* 快捷进入驾驶舱按钮 */
+        .btn-cockpit {
+            background: linear-gradient(135deg, var(--brand-blue) 0%, var(--brand-blue-600) 100%);
+            color: #FFFFFF;
+            padding: 6px 16px;
+            border-radius: 9999px;
+            font-size: 12.5px;
+            font-weight: 700;
+            box-shadow: 0 3px 12px rgba(0, 87, 184, 0.25);
+            transition: all 0.2s ease;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: none;
+        }
+        .btn-cockpit:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(0, 87, 184, 0.35);
+            filter: brightness(1.06);
+        }
+
+        /* ========== 模块卡片（Boss 参考图高保真版） ========== */
+        .boss-module-card {
+            position: relative;
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.95);
+            border-radius: 18px;
+            padding: 26px 26px 22px 26px;
+            box-shadow: var(--card-shadow);
+            transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 196px;
+            cursor: pointer;
+        }
+        .boss-module-card:hover {
+            transform: translateY(-4px);
+            background: rgba(255, 255, 255, 0.96);
+            box-shadow: var(--card-shadow-hover);
+            border-color: rgba(0, 87, 184, 0.25);
+        }
+
+        /* 卡片右下角柔光水印圆 */
+        .card-watermark-circle {
+            position: absolute;
+            right: -24px;
+            bottom: -24px;
+            width: 110px;
+            height: 110px;
+            border-radius: 50%;
+            background: radial-gradient(circle, rgba(0, 87, 184, 0.08) 0%, rgba(0, 178, 227, 0.02) 70%, transparent 100%);
+            pointer-events: none;
+            transition: all 0.35s ease;
+        }
+        .boss-module-card:hover .card-watermark-circle {
+            transform: scale(1.3);
+            opacity: 0.85;
+            background: radial-gradient(circle, rgba(0, 87, 184, 0.14) 0%, rgba(0, 178, 227, 0.05) 70%, transparent 100%);
+        }
+
+        /* 模块独立图标盒子 */
+        .boss-icon-box {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+            transition: transform 0.25s ease;
+        }
+        .boss-module-card:hover .boss-icon-box {
+            transform: scale(1.06);
+        }
+
+        .icon-blue {
+            background: #0057B8;
+            color: #FFFFFF;
+        }
+        .icon-sky {
+            background: #0EA5E9;
+            color: #FFFFFF;
+        }
+        .icon-purple {
+            background: #7C3AED;
+            color: #FFFFFF;
+        }
+        .icon-slate {
+            background: #334155;
+            color: #FFFFFF;
+        }
+        .icon-navy {
+            background: #1E293B;
+            color: #FFFFFF;
+        }
+        .icon-emerald {
+            background: #10B981;
+            color: #FFFFFF;
+        }
+
+        /* 进入分析中心链接 */
+        .enter-link {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--brand-blue);
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+        .boss-module-card:hover .enter-link {
+            gap: 8px;
+            color: var(--brand-blue-600);
+        }
+
+        .mono-num {
+            font-family: 'JetBrains Mono', monospace;
+        }
+    
+        .dropdown-menu-floating {
+            position: absolute;
+            background: #FFFFFF !important;
+            border-radius: 12px;
+            box-shadow: 0 16px 40px rgba(26, 35, 50, 0.22), 0 0 0 1px rgba(0, 87, 184, 0.18) !important;
+            z-index: 99999 !important;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col">
+
+    <!-- ==================== 顶部导航栏 ==================== -->
+    <header class="portal-header px-8 py-3.5 flex items-center justify-between">
+        <!-- 左侧：宝得经营平台 Logo + 中英文标题 -->
+        <div class="flex items-center gap-3.5">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-lg text-[#0057B8] bg-white border border-[rgba(0,87,184,0.22)] shadow-sm">
+                BI
+            </div>
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="font-bold text-base text-[#1A2332] tracking-tight">宝得经营平台</span>
+                    <span class="pulse-dot"></span>
+                </div>
+                <div class="text-[10px] text-[#6B7A94] font-semibold tracking-wider uppercase mt-0.5">BAODE BUSINESS PLATFORM</div>
+            </div>
+        </div>
+
+        <!-- 右侧：年月选择胶囊 + 驾驶舱快捷入口 -->
+        <div class="flex items-center gap-4">
+            <!-- 年月选择胶囊 (支持下拉菜单动态选择近三年与非未来月份) -->
+            <div class="relative hidden md:inline-flex">
+                <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                    <!-- 年份选择触发器 -->
+                    <div class="relative">
+                        <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                            <span id="currentYearText">2026</span>
+                            <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+
+                        <!-- 年份下拉菜单 (动态渲染近三年) -->
+                        <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                            <div id="yearDropdownOptions"></div>
+                        </div>
+                    </div>
+
+                    <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+
+                    <!-- 月份选择触发器 -->
+                    <div class="relative">
+                        <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                            <span id="currentMonthText">9月</span>
+                            <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                            </svg>
+                        </button>
+
+                        <!-- 月份下拉菜单 (动态禁用未来月份) -->
+                        <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                            <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                <span>选择月份</span>
+                                <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                            </div>
+                            <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 快捷进入驾驶舱 -->
+            <button class="btn-cockpit" onclick="window.location.href='executive-dashboard.html'">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+                </svg>
+                进入驾驶舱
+            </button>
+        </div>
+    </header>
+
+    <!-- ==================== 主内容区：业务分析中心矩阵 (仅展示指定的 6 大核心模块) ==================== -->
+    <main class="flex-1 max-w-[1600px] w-full mx-auto px-8 py-10">
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-7">
+
+            <!-- 模块 1: 企业经营驾驶舱 -->
+            <div class="boss-module-card group" onclick="window.location.href='executive-dashboard.html'">
+                <div>
+                    <div class="boss-icon-box icon-blue">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-base font-bold text-[#1A2332] mb-1.5 group-hover:text-[#0057B8] transition-colors">企业经营驾驶舱</h3>
+                    <p class="text-xs text-[#6B7A94] leading-relaxed">接单、出货、回款、达成率、产值等核心经营指标全景总览</p>
+                </div>
+                <div class="pt-6 flex items-center justify-between">
+                    <span class="enter-link">
+                        进入分析中心 →
+                    </span>
+                </div>
+                <div class="card-watermark-circle"></div>
+            </div>
+
+            <!-- 模块 2: 销售分析中心 -->
+            <div class="boss-module-card group" onclick="window.location.href='sales-center.html'">
+                <div>
+                    <div class="boss-icon-box icon-sky">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-base font-bold text-[#1A2332] mb-1.5 group-hover:text-[#0057B8] transition-colors">销售分析中心</h3>
+                    <p class="text-xs text-[#6B7A94] leading-relaxed">接单出货回款、行业经营分析表、业务员目标管理表与逾期应收</p>
+                </div>
+                <div class="pt-6 flex items-center justify-between">
+                    <span class="enter-link">
+                        进入分析中心 →
+                    </span>
+                </div>
+                <div class="card-watermark-circle"></div>
+            </div>
+
+            <!-- 模块 3: 研发分析中心 -->
+            <div class="boss-module-card group" onclick="window.location.href='rd-center.html'">
+                <div>
+                    <div class="boss-icon-box icon-purple">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-base font-bold text-[#1A2332] mb-1.5 group-hover:text-[#0057B8] transition-colors">研发分析中心</h3>
+                    <p class="text-xs text-[#6B7A94] leading-relaxed">新品开发周期、研发项目进度、研发投入产出比与成果专利管理</p>
+                </div>
+                <div class="pt-6 flex items-center justify-between">
+                    <span class="enter-link">
+                        进入分析中心 →
+                    </span>
+                </div>
+                <div class="card-watermark-circle"></div>
+            </div>
+
+            <!-- 模块 4: 生产分析中心 -->
+            <div class="boss-module-card group" onclick="window.location.href='production-center.html'">
+                <div>
+                    <div class="boss-icon-box icon-slate">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-base font-bold text-[#1A2332] mb-1.5 group-hover:text-[#0057B8] transition-colors">生产分析中心</h3>
+                    <p class="text-xs text-[#6B7A94] leading-relaxed">生产交付、库存管理与超期、质量受控、采购供应与设备稼动全景</p>
+                </div>
+                <div class="pt-6 flex items-center justify-between">
+                    <span class="enter-link">
+                        进入分析中心 →
+                    </span>
+                </div>
+                <div class="card-watermark-circle"></div>
+            </div>
+
+            <!-- 模块 5: 项目分析中心 -->
+            <div class="boss-module-card group" onclick="window.location.href='project-center.html'">
+                <div>
+                    <div class="boss-icon-box icon-emerald">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-base font-bold text-[#1A2332] mb-1.5 group-hover:text-[#0057B8] transition-colors">项目分析中心</h3>
+                    <p class="text-xs text-[#6B7A94] leading-relaxed">重大项目里程碑、交付进度跟踪、项目毛利核算与风险预警</p>
+                </div>
+                <div class="pt-6 flex items-center justify-between">
+                    <span class="enter-link">
+                        进入分析中心 →
+                    </span>
+                </div>
+                <div class="card-watermark-circle"></div>
+            </div>
+
+
+            <!-- 模块 6: 主数据管理 -->
+            <div class="boss-module-card group" onclick="window.location.href='mdm-center.html'">
+                <div>
+                    <div class="boss-icon-box icon-navy">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 6h16M4 12h16M4 18h16"/>
+                        </svg>
+                    </div>
+                    <h3 class="text-base font-bold text-[#1A2332] mb-1.5 group-hover:text-[#0057B8] transition-colors">主数据管理</h3>
+                    <p class="text-xs text-[#6B7A94] leading-relaxed">客户、供应商、物料、组织架构、人员主数据统一管理</p>
+                </div>
+                <div class="pt-6 flex items-center justify-between">
+                    <span class="enter-link">
+                        进入分析中心 →
+                    </span>
+                </div>
+                <div class="card-watermark-circle"></div>
+            </div>
+
+        </div>
+
+    </main>
+
+    <!-- ==================== 页脚 ==================== -->
+    <footer class="portal-header mt-auto px-8 py-4 flex items-center justify-between text-xs text-[#6B7A94]">
+        <div>
+            <span class="font-bold text-[#1A2332]">宝得经营平台</span> · BAODE BUSINESS PLATFORM · 数字化运营决策中心
+        </div>
+        <div class="flex items-center gap-6">
+            <span>视觉体系：Alfa Laval Industrial Visual System</span>
+            <span>版本：v3.2 Enterprise Edition</span>
+        </div>
+    </footer>
+
+    <!-- ==================== 交互脚本 ==================== -->
+    <script>
+    // 基于系统时间的动态时间范围配置
+    var sysNow = new Date();
+    var baseYear = Math.max(sysNow.getFullYear(), 2026);
+    var currentSysYear = baseYear;
+    var currentSysMonth = 9;
+
+    var selectedYear = 2026;
+    var selectedMonth = 9;
+
+    var availableYears = [currentSysYear, currentSysYear - 1, currentSysYear - 2];
+
+    // 渲染动态年份下拉菜单
+    function renderYearDropdown() {
+        var container = document.getElementById('yearDropdownOptions');
+        if (!container) return;
+        var html = '<div class="text-[10px] text-[#8A99B5] px-3 py-1 font-semibold uppercase tracking-wider">近三年年份</div>';
+        availableYears.forEach(function(yr) {
+            var isSelected = yr === selectedYear;
+            html += '<div class="dropdown-item px-3 py-1.5 text-xs font-semibold text-[#1A2332] hover:bg-[#0057B8]/10 hover:text-[#0057B8] cursor-pointer flex items-center justify-between transition-colors" onclick="selectYear(' + yr + ')">' +
+                        '<span>' + yr + ' 年</span>' +
+                        (isSelected ? '<span class="text-[#0057B8] font-bold">✓</span>' : '<span class="text-transparent">✓</span>') +
+                    '</div>';
+        });
+        container.innerHTML = html;
+        var yrText = document.getElementById('currentYearText');
+        if (yrText) yrText.innerText = selectedYear;
+    }
+
+    // 渲染动态月份下拉菜单 (未来月份严禁查询与点击)
+    function renderMonthDropdown() {
+        var grid = document.getElementById('monthOptionsGrid');
+        if (!grid) return;
+        var html = '';
+        var tipEl = document.getElementById('monthLimitTip');
+        if (tipEl) {
+            if (selectedYear === currentSysYear) {
+                tipEl.innerText = '当期最多至' + currentSysMonth + '月';
+            } else {
+                tipEl.innerText = '1~12月全量可选';
+            }
+        }
+
+        for (var m = 1; m <= 12; m++) {
+            var isFuture = (selectedYear === currentSysYear && m > currentSysMonth);
+            var isSelected = (m === selectedMonth);
+            var label = m + '月';
+
+            if (isFuture) {
+                // 未来月份：置灰禁用、不可选、鼠标禁用手势
+                html += '<div class="month-item text-center py-1.5 rounded-lg text-xs font-medium text-[#94A3B8] bg-slate-100/70 cursor-not-allowed select-none opacity-40" title="未来月份尚未发生，不可查询">' + label + '</div>';
+            } else if (isSelected) {
+                // 当前选中月份：实色高亮
+                html += '<div class="month-item text-center py-1.5 rounded-lg text-xs font-bold bg-[#0057B8] text-white cursor-pointer transition-all shadow-sm" onclick="selectMonth(' + m + ')">' + label + '</div>';
+            } else {
+                // 可选正常月份
+                html += '<div class="month-item text-center py-1.5 rounded-lg text-xs font-semibold text-[#1A2332] hover:bg-[#0057B8]/10 hover:text-[#0057B8] cursor-pointer transition-all" onclick="selectMonth(' + m + ')">' + label + '</div>';
+            }
+        }
+        grid.innerHTML = html;
+        var mText = document.getElementById('currentMonthText');
+        if (mText) mText.innerText = selectedMonth + '月';
+    }
+
+    // 年月下拉菜单开关
+    function toggleDropdown(menuId, e) {
+        if (e) e.stopPropagation();
+        var menu = document.getElementById(menuId);
+        var isHidden = menu.classList.contains('hidden');
+        
+        // 先关闭所有下拉菜单
+        document.getElementById('yearDropdownMenu').classList.add('hidden');
+        document.getElementById('monthDropdownMenu').classList.add('hidden');
+        document.getElementById('yearChevron').style.transform = 'rotate(0deg)';
+        document.getElementById('monthChevron').style.transform = 'rotate(0deg)';
+
+        if (isHidden) {
+            menu.classList.remove('hidden');
+            if (menuId === 'yearDropdownMenu') {
+                document.getElementById('yearChevron').style.transform = 'rotate(180deg)';
+                renderYearDropdown();
+            } else {
+                document.getElementById('monthChevron').style.transform = 'rotate(180deg)';
+                renderMonthDropdown();
+            }
+        }
+    }
+
+    // 选中年份逻辑 (如果选今年且当前月份在未来，则自动安全回退至当前月份)
+    function selectYear(yr) {
+        selectedYear = parseInt(yr);
+        if (selectedYear === currentSysYear && selectedMonth > currentSysMonth) {
+            selectedMonth = currentSysMonth;
+        }
+        renderYearDropdown();
+        renderMonthDropdown();
+        document.getElementById('yearDropdownMenu').classList.add('hidden');
+        document.getElementById('yearChevron').style.transform = 'rotate(0deg)';
+        console.log('Switched to year:', selectedYear, 'month:', selectedMonth);
+    }
+
+    // 选中月份逻辑 (禁止选中未来月份)
+    function selectMonth(m) {
+        var mNum = parseInt(m);
+        if (selectedYear === currentSysYear && mNum > currentSysMonth) {
+            return; // 拦截未来月份
+        }
+        selectedMonth = mNum;
+        renderMonthDropdown();
+        document.getElementById('monthDropdownMenu').classList.add('hidden');
+        document.getElementById('monthChevron').style.transform = 'rotate(0deg)';
+        console.log('Switched to month:', selectedMonth);
+    }
+
+    // 全局点击空白处关闭下拉菜单
+    document.addEventListener('click', function() {
+        var ym = document.getElementById('yearDropdownMenu');
+        var mm = document.getElementById('monthDropdownMenu');
+        if (ym) ym.classList.add('hidden');
+        if (mm) mm.classList.add('hidden');
+        var yc = document.getElementById('yearChevron');
+        var mc = document.getElementById('monthChevron');
+        if (yc) yc.style.transform = 'rotate(0deg)';
+        if (mc) mc.style.transform = 'rotate(0deg)';
+    });
+
+    // 页面加载完成后初始化
+    renderYearDropdown();
+    renderMonthDropdown();
+    </script>
+</body>
+</html>

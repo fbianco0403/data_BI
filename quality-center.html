@@ -1,0 +1,1254 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>质量管控分析 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        /* 台账表格鼠标滚轮滚动区域纤细滚动条 */
+        .table-scroll-container::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: rgba(26, 35, 50, 0.04);
+            border-radius: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: rgba(0, 87, 184, 0.35);
+            border-radius: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 87, 184, 0.6);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <main class="flex-1 overflow-auto">
+            <!-- 顶部导航条 (与企业经营驾驶舱 100% 相同) -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5">
+                <div class="flex items-center justify-between">
+                    <!-- 左侧：页面标题 -->
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">生产分析中心 · 质量管控</span>
+                    </div>
+
+                    <!-- 右侧：年月选择胶囊 (与驾驶舱 100% 保持一致：动态近三年与未来月份拦截) -->
+                    <div class="flex items-center">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <!-- 年份选择触发器 -->
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 年份下拉菜单 (动态渲染近三年) -->
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+
+                                <!-- 月份选择触发器 -->
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 月份下拉菜单 (动态禁用未来月份) -->
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                                        <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                            <span>选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+                <!-- 模块 1：质量管控核心运营总览（与企业经营驾驶舱 100% 对齐） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">质量管控分析总览</h3>
+                        </div>
+                        <div id="kpi-cards" class="sales-overview-grid mb-1"></div>
+                    </div>
+                </div>
+
+                <!-- 车间质量对比区：钎焊 / 板片 / 可拆 三车间 tab 切换 -->
+                <div class="card p-7 mb-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <div>
+                            <h3 class="section-title font-semibold text-[#0B1128]">车间质量对比分析</h3>
+                        </div>
+                        <div class="tab-bar" id="ws-tabs">
+                            <button class="tab-btn active" data-ws="brazing" onclick="switchWs(this)">钎焊车间</button>
+                            <button class="tab-btn" data-ws="plate" onclick="switchWs(this)">板片车间</button>
+                            <button class="tab-btn" data-ws="detachable" onclick="switchWs(this)">可拆车间</button>
+                        </div>
+                    </div>
+                    <!-- 钎焊车间面板 -->
+                    <div id="ws-brazing">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="text-sm font-medium text-[#0B1128]">钎焊车间 · 核心指标</div>
+                            <div class="tab-bar">
+                                <button class="tab-btn dim-btn active" data-dim="wt" onclick="switchDim(this)">重量维度</button>
+                                <button class="tab-btn dim-btn" data-dim="qty" onclick="switchDim(this)">数量维度 ★</button>
+                            </div>
+                        </div>
+                        <div id="brazing-kpis" class="sales-overview-grid mb-5"></div>
+                        <div id="brazing-chart" class="chart-container"></div>
+                    </div>
+
+                    <!-- 板片车间面板 -->
+                    <div id="ws-plate" style="display:none">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="text-sm font-medium text-[#0B1128]">板片车间 · 报废分析</div>
+                            <div class="tab-bar">
+                                <button class="tab-btn dim-btn active" data-dim="wt" onclick="switchDim(this)">重量维度</button>
+                                <button class="tab-btn dim-btn" data-dim="qty" onclick="switchDim(this)">数量维度 ★</button>
+                            </div>
+                        </div>
+                        <div id="plate-kpis" class="sales-overview-grid mb-5"></div>
+                        <div id="plate-chart" class="chart-container"></div>
+                    </div>
+
+                    <!-- 可拆车间面板 -->
+                    <div id="ws-detachable" style="display:none">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="text-sm font-medium text-[#0B1128]">可拆车间 · 一次合格率分析</div>
+                        </div>
+                        <div id="detachable-kpis" class="sales-overview-grid mb-5"></div>
+                        <div id="detachable-chart" class="chart-container"></div>
+                    </div>
+                </div>
+
+                <!-- 来料质量分析 IQC：左侧周累计堆积柱状图+折线图 + 右侧供应商来料合格明细 -->
+                <div class="grid grid-cols-12 gap-6 mb-6">
+                    <div class="col-span-12 lg:col-span-6 card p-6">
+                        <div class="flex items-center justify-between mb-3">
+                            <div class="flex items-center gap-2">
+                                <h3 class="section-title font-semibold text-[#0B1128]">来料质量分析 IQC</h3>
+                            </div>
+                        </div>
+                        <!-- 4个汇总指标卡片（保持与总览及客诉指标一致风格） -->
+                        <div id="iqc-kpis" class="sales-overview-grid mb-3"></div>
+                        <!-- 周累计趋势图：合格批次与不合格批次堆积柱状图 + 来料合格率折线图 -->
+                        <div id="iqcTrendChart" class="chart-box" style="height: 250px; min-height: 250px;"></div>
+                    </div>
+                    <!-- 右侧：供应商来料不合格 Top 10（设计样式与超期库存客户排名 Top 10 一致，首屏5行滑轮滚动） -->
+                    <div class="col-span-12 lg:col-span-6 card p-6">
+                        <div class="flex items-center justify-between mb-1.5">
+                            <h3 class="section-title font-semibold text-[#0B1128]">供应商来料不合格 Top 10</h3>
+                            <span class="text-xs text-[#E87722] font-semibold" id="iqcNgTotalText">不合格总批次 14 批</span>
+                        </div>
+                        <div id="iqcSupplierRankChart" class="chart-box" style="height: 270px; min-height: 270px;"></div>
+                    </div>
+                </div>
+                <!-- 客诉分析：钎焊 / 可拆 Tab 切换 + 统一指标 + 周累计趋势 + 责任分布 + 截至当前月走势 -->
+                <div class="card mb-6">
+                    <div class="card-inner">
+                        <!-- 标题栏 + 右侧 Tab 页签 -->
+                        <div class="flex items-center justify-between mb-4 pb-3 border-b border-[rgba(26,35,50,0.06)]">
+                            <div>
+                                <h3 class="section-title">客诉分析</h3>
+                            </div>
+                            <!-- 右侧 Tab 页签 -->
+                            <div class="inline-flex p-1 bg-slate-100 rounded-lg border border-slate-200/80">
+                                <button id="complaintTabBrazing" onclick="switchComplaintTab('brazing')" class="px-3.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer bg-white text-[#0057B8] shadow-xs">
+                                    钎焊换热器
+                                </button>
+                                <button id="complaintTabDetachable" onclick="switchComplaintTab('detachable')" class="px-3.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer text-[#6B7A94] hover:text-[#1A2332]">
+                                    可拆换热器
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 统一指标卡片栏（6个指标月度汇总值，风格与质量管控分析总览保持100%一致） -->
+                        <div id="complaintsKpiRow" class="sales-overview-grid" style="margin-bottom: 18px !important;">
+                            <!-- 动态渲染：客诉数量、已关闭客诉、未关闭客诉、客诉率、客诉PPM、客诉关闭率 -->
+                        </div>
+
+                        <!-- 中间图表区域：周累计趋势 (7列) + 客诉责任分布 (5列) -->
+                        <div class="grid grid-cols-12 gap-5 mb-5">
+                            <div class="col-span-12 lg:col-span-7 bg-white/50 p-3.5 rounded-lg border border-slate-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="text-xs font-bold text-[#1A2332] flex items-center gap-1.5">
+                                        <span class="w-1.5 h-3 bg-[#0057B8] rounded-full"></span>
+                                        <span id="complaintWeekTitle">客诉率与客诉关闭率周累计趋势</span>
+                                    </div>
+                                </div>
+                                <div id="complaintWeekChart" class="chart-box" style="height: 220px; min-height: 220px;"></div>
+                            </div>
+                            <div class="col-span-12 lg:col-span-5 bg-white/50 p-3.5 rounded-lg border border-slate-100">
+                                <div class="flex items-center justify-between mb-2">
+                                    <div class="text-xs font-bold text-[#1A2332] flex items-center gap-1.5">
+                                        <span class="w-1.5 h-3 bg-[#5F8E68] rounded-full"></span>
+                                        <span id="complaintDutyTitle">客诉原因分布</span>
+                                    </div>
+                                </div>
+                                <div id="complaintDutyChart" class="chart-box" style="height: 220px; min-height: 220px;"></div>
+                            </div>
+                        </div>
+
+                        <!-- 下方图表区域：截至当前月的每月客诉趋势 -->
+                        <div class="bg-white/50 p-3.5 rounded-lg border border-slate-100">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="text-xs font-bold text-[#1A2332] flex items-center gap-1.5">
+                                    <span class="w-1.5 h-3 bg-[#E87722] rounded-full"></span>
+                                    <span id="complaintMonthlyTitle">截至当前月的每月客诉趋势</span>
+                                </div>
+                            </div>
+                            <div id="complaintMonthlyTrendChart" class="chart-box" style="height: 200px; min-height: 200px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 未关闭客诉跟踪台账 (与高库龄与呆滞物料风险预警台账统一风格) -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-3">
+                            <div>
+                                <h3 class="section-title">未关闭客诉跟踪台账</h3>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-500/10 text-rose-600 border border-rose-500/20">
+                                    严重超期 (>7天) 2起
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                    一般超期 (1~7天) 3起
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                                    正常推进中 5起
+                                </span>
+                                <button onclick="exportComplaintsExcel()" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-[rgba(0,87,184,0.3)] bg-[#0057B8]/10 hover:bg-[#0057B8]/20 text-xs font-semibold text-[#0057B8] transition-all cursor-pointer shadow-xs active:scale-95" title="导出客诉台账至标准 Excel (.xlsx)">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <span>导出 Excel</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="overflow-y-auto overflow-x-auto table-scroll-container rounded border border-[rgba(26,35,50,0.06)] bg-white/40" style="height: 208px; max-height: 208px;">
+                            <table class="w-full text-xs text-left">
+                                <thead class="sticky top-0 z-10 bg-[#EEF3F8] shadow-sm">
+                                    <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 32px;">
+                                        <th class="py-2 px-3">客诉编号</th>
+                                        <th class="py-2 px-3">客户名称</th>
+                                        <th class="py-2 px-3">涉及产品</th>
+                                        <th class="py-2 px-3">问题描述</th>
+                                        <th class="py-2 px-3">责任人</th>
+                                        <th class="py-2 px-3">当前状态</th>
+                                        <th class="py-2 px-3">超期情况</th>
+                                        <th class="py-2 px-3 text-right">金额影响 (万元)</th>
+                                        <th class="py-2 px-3">拟处置方案 / 8D进展</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="open-complaints-tbody" class="divide-y divide-[rgba(26,35,50,0.05)]">
+                                    <!-- 动态渲染 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    var MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+    function buildMock() {
+        var brazing = {
+            passQty: [98.1, 98.3, 98.0, 98.4, 98.3, 98.2, 98.8, 98.5, 98.6, 98.3, 98.4, 98.6],
+            passWt:  [98.4, 98.6, 98.3, 98.7, 98.6, 98.5, 99.0, 98.8, 98.9, 98.6, 98.7, 98.9],
+            rework:  [1.9, 1.7, 2.0, 1.6, 1.7, 1.8, 1.2, 1.5, 1.4, 1.7, 1.6, 1.5],
+            scrapWt: [0.85, 0.88, 0.82, 0.79, 0.81, 0.83, 0.76, 0.78, 0.75, 0.80, 0.78, 0.77],
+            scrapQty:[0.64, 0.66, 0.62, 0.60, 0.61, 0.63, 0.58, 0.59, 0.57, 0.61, 0.59, 0.58],
+            scrapAmt:[9.2, 8.6, 10.1, 9.8, 10.6, 11.2, 11.8, 10.9, 10.3, 10.8, 10.1, 11.2],
+            wtProd:  [510, 490, 530, 520, 535, 545, 532.5, 525, 515, 530, 510, 535],
+            wtRework:[9.7, 8.3, 10.6, 8.3, 9.1, 9.8, 6.4, 7.9, 7.2, 9.0, 8.2, 8.0],
+            wtScrap: [4.3, 4.3, 4.3, 4.1, 4.3, 4.5, 4.0, 4.1, 3.9, 4.2, 4.0, 4.1],
+            qtyProd: [6500, 6250, 6780, 6650, 6840, 6950, 6820, 6700, 6580, 6760, 6520, 6830],
+            qtyRework:[124, 106, 136, 106, 116, 125, 82, 101, 92, 115, 104, 102],
+            qtyScrap:[42, 41, 42, 40, 42, 44, 40, 40, 37, 41, 38, 40]
+        };
+        var plate = {
+            wtProd:  [690, 640, 715, 700, 725, 738, 730, 712, 698, 705, 692, 715],
+            wtScrap: [5.8, 5.2, 6.4, 6.0, 6.5, 6.8, 6.2, 6.3, 5.9, 6.4, 6.1, 6.5],
+            wtRate:  [0.84, 0.81, 0.90, 0.86, 0.90, 0.92, 0.85, 0.88, 0.85, 0.91, 0.88, 0.91],
+            qtyProd: [48.6, 45.2, 50.3, 49.4, 51.2, 52.1, 51.2, 50.0, 49.1, 49.6, 48.7, 50.4],
+            qtyScrap:[4.1, 3.7, 4.5, 4.2, 4.6, 4.8, 4.3, 4.4, 4.0, 4.4, 4.2, 4.5],
+            qtyRate: [0.84, 0.82, 0.90, 0.85, 0.90, 0.92, 0.84, 0.88, 0.81, 0.89, 0.86, 0.89]
+        };
+        var detachable = {
+            prod:  [1720, 1650, 1780, 1750, 1810, 1840, 1860, 1790, 1760, 1800, 1740, 1820],
+            rework:[35, 32, 38, 33, 30, 28, 22, 29, 31, 27, 30, 26],
+            pass:  [97.97, 98.06, 97.87, 98.11, 98.34, 98.48, 98.82, 98.38, 98.24, 98.50, 98.28, 98.57]
+        };
+        var iqc = {
+            total: 486, ok: 472, ng: 14, rate: 97.1,
+            weeks: ['第1周', '第2周', '第3周', '第4周', '第5周'],
+            weekOkCum: [92, 188, 285, 382, 472],
+            weekNgCum: [2, 5, 9, 11, 14],
+            weekRateCum: [97.9, 97.4, 96.9, 97.2, 97.1],
+            suppliers: [
+                { name: '江苏宏宝集团有限公司', total: 48, ok: 44, ng: 4 },
+                { name: '江阴兴澄特种材料', total: 82, ok: 79, ng: 3 },
+                { name: '太钢不锈华东销售', total: 74, ok: 72, ng: 2 },
+                { name: '青岛有发金属材料', total: 62, ok: 60, ng: 2 },
+                { name: '宁波宝新不锈钢', total: 52, ok: 51, ng: 1 },
+                { name: '无锡华精板带科技', total: 56, ok: 55, ng: 1 },
+                { name: '上海首富金属材料', total: 44, ok: 43, ng: 1 },
+                { name: '常州通用钢管实业', total: 28, ok: 28, ng: 0 },
+                { name: '张家港浦项不锈钢', total: 24, ok: 24, ng: 0 },
+                { name: '无锡宝德特钢制造', total: 16, ok: 16, ng: 0 }
+            ]
+        };
+        var complaints = {
+            brazing: {
+                count: 8,
+                closed: 5,
+                open: 3,
+                rate: 0.12,
+                ppm: 118,
+                closeRate: 62.5,
+                weeks: ['第1周', '第2周', '第3周', '第4周', '第5周'],
+                weekRateCum: [0.08, 0.10, 0.11, 0.12, 0.12],
+                weekCloseRateCum: [40.0, 50.0, 57.1, 62.5, 62.5],
+                cause: [
+                    { name: '内漏', value: 3, itemStyle: { color: '#0057B8' } },
+                    { name: '外漏', value: 2, itemStyle: { color: '#E87722' } },
+                    { name: '外观不良', value: 1, itemStyle: { color: '#F39C12' } },
+                    { name: '配件不良/漏发', value: 1, itemStyle: { color: '#00B2E3' } },
+                    { name: '包装不良', value: 1, itemStyle: { color: '#5F8E68' } }
+                ],
+                monthly: {
+                    counts: [9, 7, 10, 8, 11, 12, 8, 9, 8, 7, 6, 8],
+                    rates:  [0.14, 0.11, 0.15, 0.12, 0.16, 0.17, 0.12, 0.13, 0.12, 0.11, 0.09, 0.11],
+                    closeRates: [66.7, 71.4, 60.0, 75.0, 63.6, 58.3, 62.5, 66.7, 62.5, 71.4, 83.3, 75.0]
+                }
+            },
+            detachable: {
+                count: 4,
+                closed: 3,
+                open: 1,
+                rate: 0.42,
+                ppm: 420,
+                closeRate: 75.0,
+                weeks: ['第1周', '第2周', '第3周', '第4周', '第5周'],
+                weekRateCum: [0.25, 0.32, 0.38, 0.42, 0.42],
+                weekCloseRateCum: [50.0, 66.7, 66.7, 75.0, 75.0],
+                cause: [
+                    { name: '外漏', value: 2, itemStyle: { color: '#0057B8' } },
+                    { name: '配件不良/漏发', value: 1, itemStyle: { color: '#00B2E3' } },
+                    { name: '外观不良', value: 1, itemStyle: { color: '#F39C12' } }
+                ],
+                monthly: {
+                    counts: [5, 4, 6, 5, 7, 6, 4, 5, 4, 3, 4, 5],
+                    rates:  [0.51, 0.42, 0.61, 0.52, 0.68, 0.59, 0.42, 0.48, 0.42, 0.33, 0.39, 0.48],
+                    closeRates: [80.0, 75.0, 66.7, 80.0, 71.4, 66.7, 75.0, 80.0, 75.0, 100.0, 75.0, 80.0]
+                }
+            }
+        };
+        var openComplaints = [
+            { no: 'CS-2026-0618', cust: '华成换热设备有限公司', prod: '钎焊板式换热器 B25', desc: '板片焊缝渗透渗漏', owner: '王志强', status: '处理中', overdue: 12, amt: 3.2, plan: '现场拆机复验，重新补焊并加压保压测试' },
+            { no: 'CS-2026-0702', cust: '江苏恒力化工机械', prod: '可拆板式换热器 M10', desc: '密封垫老化导致泄漏', owner: '李敏', status: '待客户确认', overdue: 5, amt: 1.8, plan: '免费提供EPDM特种胶垫更换套件' },
+            { no: 'CS-2026-0715', cust: '上海艾克流体科技', prod: '板片 P26', desc: '片材表面压痕超标', owner: '张海波', status: '原因分析中', overdue: 3, amt: 0.9, plan: '模具表面抛光处理，下批次加严首件检验' },
+            { no: 'CS-2026-0721', cust: '山东蓝箭环保装备', prod: '钎焊机组 B60', desc: '钎焊焊缝微裂', owner: '王志强', status: '8D报告中', overdue: 1, amt: 2.6, plan: '启动8D调查，已锁定钎焊炉区温区控制偏差' },
+            { no: 'CS-2026-0725', cust: '浙江中德能源装备', prod: '可拆板式换热器 M15', desc: '板片错装漏装', owner: '李敏', status: '措施确认中', overdue: 0, amt: 0.6, plan: '优化装配防呆工装，补充工序互检节点' },
+            { no: 'CS-2026-0728', cust: '广东佛山水处理设备', prod: '板片 P30', desc: '板片尺寸超差', owner: '张海波', status: '待检验复核', overdue: 0, amt: 0.4, plan: '冲压冲模间隙微调，复核首件CPK值' },
+            { no: 'CS-2026-0802', cust: '青岛海信暖通科技', prod: '钎焊换热器 CB60', desc: '接口螺纹毛刺未清理', owner: '李灵', status: '整改完成待验', overdue: 0, amt: 0.5, plan: '增加去毛刺吹扫专机，修订出厂检验规范' },
+            { no: 'CS-2026-0805', cust: '合肥海尔制冷系统', prod: '蒸发器模块 E35', desc: '壳体表面划伤轻微变形', owner: '王志强', status: '方案协商中', overdue: 2, amt: 1.5, plan: '改善物流包装缓冲棉层，责任物流理赔' },
+            { no: 'CS-2026-0810', cust: '麦克维尔中央空调', prod: '冷凝器机组 C80', desc: '氦检微漏超标(1.2ppm)', owner: '李灵', status: '研发协同分析', overdue: 8, amt: 4.2, plan: '联合工艺与研发重新核定铜箔焊料比例' },
+            { no: 'CS-2026-0815', cust: '南京天加环境科技', prod: '板片 P45', desc: '进出口角孔毛刺刮垫片', owner: '张海波', status: '模具修磨中', overdue: 0, amt: 0.8, plan: '修模刀口圆角研磨，调增冲裁润滑油量' }
+        ];
+        return {
+            kpi: { brazingPassQty: 98.8, brazingPassWt: 99.0, reworkRate: 1.20, scrapRateWt: 0.76, scrapRateQty: 0.58,
+                   scrapAmt: 11.8, ppm: 118, iqcRate: 97.1, detPass: 98.82, plateRateWt: 0.85, plateRateQty: 0.84 },
+            brazing: brazing, plate: plate, detachable: detachable,
+            iqc: iqc, complaints: complaints, openComplaints: openComplaints
+        };
+    }
+
+    var DATA = buildMock();
+    var charts = {};
+    var currentWs = 'brazing';
+    var currentDim = 'wt';
+
+    function fmt(n) { return n.toLocaleString('zh-CN'); }
+
+    function renderKPIs() {
+        var k = DATA.kpi;
+        var cards = [
+            { label: '钎焊一次合格率', id: 'QAL-001', formula: '1 - 返工率 (首次合格/总检验)', value: k.brazingPassQty.toFixed(1), unit: '%', valCls: 'val-good', sub: 'QAL-001 · 达标' },
+            { label: '钎焊返工率', id: 'QAL-002', formula: '钎焊返工台数 / 钎焊生产台数', value: k.reworkRate.toFixed(2), unit: '%', valCls: 'val-up', sub: 'QAL-002 · 达标' },
+            { label: '钎焊报废率', id: 'QAL-003', formula: '实际报废重量 ÷ 当月BOM用料重量', value: k.scrapRateWt.toFixed(2), unit: '%', valCls: 'val-good', sub: 'QAL-003 · 达标' },
+            { label: '钎焊报废金额', id: 'QAL-004', formula: 'SUM(实际报废重量 × 核算单价)', value: k.scrapAmt.toFixed(1), unit: '万', valCls: 'val-orange', sub: 'QAL-004 · 关注' },
+            { label: '板片报废率', id: 'QAL-010', formula: '实际报废重量 ÷ 当月BOM用料重量', value: k.plateRateWt.toFixed(2), unit: '%', valCls: 'val-orange', sub: 'QAL-010 · 关注' },
+            { label: '可拆一次合格率', id: 'QAL-016', formula: '一次检验合格台数 ÷ 生产总数', value: k.detPass.toFixed(2), unit: '%', valCls: 'val-good', sub: 'QAL-016 · 达标' },
+            { label: '来料合格率 (IQC)', id: 'QAL-020', formula: '送检合格批次 ÷ 送检总批次', value: k.iqcRate.toFixed(1), unit: '%', valCls: 'val-orange', sub: 'QAL-020 · 关注' },
+            { label: '客诉PPM（钎焊）', id: 'QAL-022', formula: '客诉数量 / 出库数量 × 1,000,000', value: fmt(k.ppm), unit: '', valCls: 'val-good', sub: 'QAL-022 · 达标' }
+        ];
+        document.getElementById('kpi-cards').innerHTML = cards.map(function (c) {
+            return '<div class="kpi-cell sales-overview-cell cursor-default" title="' + c.id + ' · ' + c.label + ' · ' + c.formula + '">' +
+                '<div class="kpi-label">' + c.label + '</div>' +
+                '<div class="kpi-value sales-overview-value ' + c.valCls + '">' + c.value + '<span class="unit text-xs">' + c.unit + '</span></div>' +
+                '</div>';
+        }).join('');
+    }
+
+    function switchWs(btn) {
+        currentWs = btn.dataset.ws;
+        document.querySelectorAll('#ws-tabs .tab-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.ws === currentWs);
+        });
+        renderWorkshop();
+    }
+
+    function switchDim(btn) {
+        currentDim = btn.dataset.dim;
+        document.querySelectorAll('.dim-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.dim === currentDim);
+        });
+        if (currentWs === 'brazing') { renderBrazingKpis(); renderBrazingChart(); }
+        else if (currentWs === 'plate') { renderPlateKpis(); renderPlateChart(); }
+    }
+
+    function renderWorkshop() {
+        ['brazing', 'plate', 'detachable'].forEach(function (w) {
+            var el = document.getElementById('ws-' + w);
+            if (el) el.style.display = (w === currentWs) ? '' : 'none';
+        });
+        document.querySelectorAll('.dim-btn').forEach(function (b) {
+            b.classList.toggle('active', b.dataset.dim === currentDim);
+        });
+        if (currentWs === 'brazing') { renderBrazingKpis(); renderBrazingChart(); }
+        else if (currentWs === 'plate') { renderPlateKpis(); renderPlateChart(); }
+        else { renderDetachableKpis(); renderDetachableChart(); }
+    }
+
+    function miniKpi(id, label, value, unit, desc, color) {
+        return '<div class="kpi-box">' +
+            '<div class="text-xs text-[#656565] mb-1">' + label + '</div>' +
+            '<div class="text-2xl font-bold leading-tight" style="color:' + color + '">' + value + '<span class="text-xs font-medium text-[#ACACAC] ml-1">' + unit + '</span></div></div>';
+    }
+
+    function renderBrazingKpis() {
+        var k = DATA.kpi;
+        var b = DATA.brazing;
+        var isWt = currentDim === 'wt';
+        var p = (typeof BDLayout !== 'undefined' && BDLayout.getPeriod) ? BDLayout.getPeriod() : { month: '7月' };
+        var curM = (parseInt(p.month) || 7) - 1;
+        if (curM < 0 || curM > 11) curM = 6;
+
+        var cards = [];
+        if (isWt) {
+            cards = [
+                { label: '生产重量', val: (b.wtProd ? b.wtProd[curM] : 532.5).toFixed(1), unit: '吨', valCls: 'val-up' },
+                { label: '返工重量', val: (b.wtRework ? b.wtRework[curM] : 6.4).toFixed(1), unit: '吨', valCls: 'val-orange' },
+                { label: '报废重量', val: (b.wtScrap ? b.wtScrap[curM] : 4.0).toFixed(1), unit: '吨', valCls: 'val-orange' },
+                { label: '一次合格率', val: (b.passWt ? b.passWt[curM] : k.brazingPassWt).toFixed(1), unit: '%', valCls: 'val-good' },
+                { label: '返工率', val: (b.rework ? b.rework[curM] : k.reworkRate).toFixed(2), unit: '%', valCls: 'val-up' },
+                { label: '报废率', val: (b.scrapWt ? b.scrapWt[curM] : k.scrapRateWt).toFixed(2), unit: '%', valCls: 'val-good' }
+            ];
+        } else {
+            cards = [
+                { label: '生产数量', val: fmt(b.qtyProd ? b.qtyProd[curM] : 6820), unit: '台', valCls: 'val-up' },
+                { label: '返工数量', val: fmt(b.qtyRework ? b.qtyRework[curM] : 82), unit: '台', valCls: 'val-orange' },
+                { label: '报废数量', val: fmt(b.qtyScrap ? b.qtyScrap[curM] : 40), unit: '台', valCls: 'val-orange' },
+                { label: '报废金额', val: (b.scrapAmt ? b.scrapAmt[curM] : k.scrapAmt).toFixed(1), unit: '万元', valCls: 'val-orange' },
+                { label: '一次合格率', val: (b.passQty ? b.passQty[curM] : k.brazingPassQty).toFixed(1), unit: '%', valCls: 'val-good' },
+                { label: '返工率', val: (b.rework ? b.rework[curM] : k.reworkRate).toFixed(2), unit: '%', valCls: 'val-up' },
+                { label: '报废率', val: (b.scrapQty ? b.scrapQty[curM] : k.scrapRateQty).toFixed(2), unit: '%', valCls: 'val-good' }
+            ];
+        }
+
+        var dom = document.getElementById('brazing-kpis');
+        if (dom) {
+            dom.innerHTML = cards.map(function (c) {
+                return '<div class="kpi-cell sales-overview-cell cursor-default">' +
+                    '<div class="kpi-label">' + c.label + '</div>' +
+                    '<div class="kpi-value sales-overview-value ' + c.valCls + '">' + c.val + '<span class="unit text-xs">' + c.unit + '</span></div>' +
+                    '</div>';
+            }).join('');
+        }
+    }
+
+    function renderBrazingChart() {
+        var el = document.getElementById('brazing-chart');
+        charts.brazing = charts.brazing || echarts.init(el);
+        var b = DATA.brazing;
+        var isWt = currentDim === 'wt';
+        var p = (typeof BDLayout !== 'undefined' && BDLayout.getPeriod) ? BDLayout.getPeriod() : { month: '7月' };
+        var mIdx = parseInt(p.month) || 7;
+        if (mIdx < 1) mIdx = 1; if (mIdx > 12) mIdx = 12;
+        var displayMonths = MONTHS.slice(0, mIdx);
+
+        var passData = (isWt ? b.passWt : b.passQty).slice(0, mIdx);
+        var reworkData = b.rework.slice(0, mIdx);
+        var scrapData = (isWt ? b.scrapWt : b.scrapQty).slice(0, mIdx);
+
+        var opt = alfaBaseChartOpt();
+        opt.xAxis = { type: 'category', data: displayMonths, axisLine: { lineStyle: { color: '#E5E5E5' } }, axisTick: { show: false }, axisLabel: { color: '#656565' } };
+        opt.yAxis = [
+            { type: 'value', min: 95, max: 100, splitLine: { lineStyle: { color: '#EEEEEC' } }, axisLabel: { formatter: '{value}%', color: '#ACACAC' } },
+            { type: 'value', min: 0, max: 3, splitLine: { show: false }, axisLabel: { formatter: '{value}%', color: '#ACACAC' } }
+        ];
+        opt.series = [
+            {
+                name: '一次合格率（' + (isWt ? '重量维度' : '数量维度') + '）', type: 'line', smooth: true, symbolSize: 6,
+                lineStyle: { width: 2.5 }, areaStyle: { color: 'rgba(0,104,255,0.06)' }, data: passData,
+                markLine: { symbol: 'none', silent: true, lineStyle: { color: '#2FA984', type: 'dashed' }, label: { formatter: '目标 98.5%', color: '#2FA984' }, data: [{ yAxis: 98.5 }] }
+            },
+            { name: '返工率', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 5, itemStyle: { color: '#E87722' }, lineStyle: { color: '#E87722', width: 2 }, data: reworkData },
+            { name: '报废率（' + (isWt ? '重量' : '数量') + '）', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 5, itemStyle: { color: '#ACACAC' }, lineStyle: { color: '#ACACAC', width: 1.5, type: 'dashed' }, data: scrapData }
+        ];
+        charts.brazing.setOption(opt, true);
+    }
+
+    function renderPlateKpis() {
+        var p = DATA.plate;
+        var isWt = currentDim === 'wt';
+        var period = (typeof BDLayout !== 'undefined' && BDLayout.getPeriod) ? BDLayout.getPeriod() : { month: '7月' };
+        var curM = (parseInt(period.month) || 7) - 1;
+        if (curM < 0 || curM > 11) curM = 6;
+
+        var cards = [];
+        if (isWt) {
+            cards = [
+                { label: '生产重量', val: fmt(p.wtProd[curM]), unit: '吨', valCls: 'val-up' },
+                { label: '报废重量', val: p.wtScrap[curM].toFixed(1), unit: '吨', valCls: 'val-orange' },
+                { label: '报废率', val: p.wtRate[curM].toFixed(2), unit: '%', valCls: 'val-orange' }
+            ];
+        } else {
+            cards = [
+                { label: '生产数量', val: p.qtyProd[curM].toFixed(1), unit: '万片', valCls: 'val-up' },
+                { label: '报废数量', val: p.qtyScrap[curM].toFixed(1), unit: '千片', valCls: 'val-orange' },
+                { label: '报废率', val: p.qtyRate[curM].toFixed(2), unit: '%', valCls: 'val-orange' }
+            ];
+        }
+
+        var dom = document.getElementById('plate-kpis');
+        if (dom) {
+            dom.innerHTML = cards.map(function (c) {
+                return '<div class="kpi-cell sales-overview-cell cursor-default">' +
+                    '<div class="kpi-label">' + c.label + '</div>' +
+                    '<div class="kpi-value sales-overview-value ' + c.valCls + '">' + c.val + '<span class="unit text-xs">' + c.unit + '</span></div>' +
+                    '</div>';
+            }).join('');
+        }
+    }
+
+    function renderPlateChart() {
+        var el = document.getElementById('plate-chart');
+        charts.plate = charts.plate || echarts.init(el);
+        var p = DATA.plate;
+        var isWt = currentDim === 'wt';
+        var period = (typeof BDLayout !== 'undefined' && BDLayout.getPeriod) ? BDLayout.getPeriod() : { month: '7月' };
+        var mIdx = parseInt(period.month) || 7;
+        if (mIdx < 1) mIdx = 1; if (mIdx > 12) mIdx = 12;
+        var displayMonths = MONTHS.slice(0, mIdx);
+
+        var prodData = (isWt ? p.wtProd : p.qtyProd).slice(0, mIdx);
+        var scrapData = (isWt ? p.wtScrap : p.qtyScrap).slice(0, mIdx);
+        var rateData = (isWt ? p.wtRate : p.qtyRate).slice(0, mIdx);
+
+        var opt = alfaBaseChartOpt();
+        opt.xAxis = { type: 'category', data: displayMonths, axisLine: { lineStyle: { color: '#E5E5E5' } }, axisTick: { show: false }, axisLabel: { color: '#656565' } };
+        opt.yAxis = [
+            { type: 'value', splitLine: { lineStyle: { color: '#EEEEEC' } }, axisLabel: { color: '#ACACAC' } },
+            { type: 'value', min: 0, max: 1.5, splitLine: { show: false }, axisLabel: { formatter: '{value}%', color: '#ACACAC' } }
+        ];
+        opt.series = [
+            { name: '生产量（' + (isWt ? '重量' : '数量') + '）', type: 'bar', barWidth: 14, itemStyle: { borderRadius: [3, 3, 0, 0] }, data: prodData },
+            { name: '报废量（' + (isWt ? '重量' : '数量') + '）', type: 'bar', barWidth: 14, itemStyle: { borderRadius: [3, 3, 0, 0], color: '#E87722' }, data: scrapData },
+            { name: '报废率', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 5, itemStyle: { color: '#2FA984' }, lineStyle: { color: '#2FA984', width: 2.5 }, data: rateData }
+        ];
+        charts.plate.setOption(opt, true);
+    }
+
+    function renderDetachableKpis() {
+        var d = DATA.detachable;
+        var period = (typeof BDLayout !== 'undefined' && BDLayout.getPeriod) ? BDLayout.getPeriod() : { month: '7月' };
+        var curM = (parseInt(period.month) || 7) - 1;
+        if (curM < 0 || curM > 11) curM = 6;
+
+        var cards = [
+            { label: '生产台数', val: fmt(d.prod[curM]), unit: '台', valCls: 'val-up' },
+            { label: '返工台数', val: fmt(d.rework[curM]), unit: '台', valCls: 'val-orange' },
+            { label: '一次合格率', val: d.pass[curM].toFixed(2), unit: '%', valCls: 'val-good' }
+        ];
+
+        var dom = document.getElementById('detachable-kpis');
+        if (dom) {
+            dom.innerHTML = cards.map(function (c) {
+                return '<div class="kpi-cell sales-overview-cell cursor-default">' +
+                    '<div class="kpi-label">' + c.label + '</div>' +
+                    '<div class="kpi-value sales-overview-value ' + c.valCls + '">' + c.val + '<span class="unit text-xs">' + c.unit + '</span></div>' +
+                    '</div>';
+            }).join('');
+        }
+    }
+
+    function renderDetachableChart() {
+        var el = document.getElementById('detachable-chart');
+        charts.detachable = charts.detachable || echarts.init(el);
+        var d = DATA.detachable;
+        var period = (typeof BDLayout !== 'undefined' && BDLayout.getPeriod) ? BDLayout.getPeriod() : { month: '7月' };
+        var mIdx = parseInt(period.month) || 7;
+        if (mIdx < 1) mIdx = 1; if (mIdx > 12) mIdx = 12;
+        var displayMonths = MONTHS.slice(0, mIdx);
+
+        var prodData = d.prod.slice(0, mIdx);
+        var passData = d.pass.slice(0, mIdx);
+
+        var opt = alfaBaseChartOpt();
+        opt.xAxis = { type: 'category', data: displayMonths, axisLine: { lineStyle: { color: '#E5E5E5' } }, axisTick: { show: false }, axisLabel: { color: '#656565' } };
+        opt.yAxis = [
+            { type: 'value', splitLine: { lineStyle: { color: '#EEEEEC' } }, axisLabel: { color: '#ACACAC' } },
+            { type: 'value', min: 96, max: 100, splitLine: { show: false }, axisLabel: { formatter: '{value}%', color: '#ACACAC' } }
+        ];
+        opt.series = [
+            { name: '生产台数', type: 'bar', barWidth: 14, itemStyle: { borderRadius: [3, 3, 0, 0] }, data: prodData },
+            { name: '一次合格率', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, itemStyle: { color: '#2FA984' }, lineStyle: { color: '#2FA984', width: 2.5 }, data: passData }
+        ];
+        charts.detachable.setOption(opt, true);
+    }
+
+    function renderIqc() {
+        var q = DATA.iqc;
+        var cards = [
+            { label: '来料批次', val: fmt(q.total), unit: '批', valCls: 'val-up' },
+            { label: '合格批次', val: fmt(q.ok), unit: '批', valCls: 'val-good' },
+            { label: '不合格批次', val: fmt(q.ng), unit: '批', valCls: 'val-orange' },
+            { label: '来料合格率', val: q.rate.toFixed(1), unit: '%', valCls: 'val-good' }
+        ];
+        var kpiEl = document.getElementById('iqc-kpis');
+        if (kpiEl) {
+            kpiEl.innerHTML = cards.map(function (c) {
+                return '<div class="kpi-cell sales-overview-cell cursor-default">' +
+                    '<div class="kpi-label">' + c.label + '</div>' +
+                    '<div class="kpi-value sales-overview-value ' + c.valCls + '">' + c.val + '<span class="unit text-xs">' + c.unit + '</span></div>' +
+                    '</div>';
+            }).join('');
+        }
+        var ngText = document.getElementById('iqcNgTotalText');
+        if (ngText) {
+            ngText.innerText = '不合格总批次 ' + q.ng + ' 批';
+        }
+        renderIqcChart();
+        renderIqcSupplierRankChart();
+    }
+
+    function renderIqcSupplierRankChart() {
+        var dom = document.getElementById('iqcSupplierRankChart');
+        if (!dom) return;
+        charts.iqcSupplierRank = charts.iqcSupplierRank || echarts.init(dom);
+        var q = DATA.iqc;
+        var sorted = (q.suppliers || []).slice().sort(function (a, b) {
+            return b.ng - a.ng;
+        }).slice(0, 10);
+
+        var names = sorted.map(function (s) { return s.name; });
+        var vals = sorted.map(function (s) { return s.ng; });
+        var maxVal = Math.max.apply(null, vals.concat([5]));
+
+        charts.iqcSupplierRank.setOption({
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                formatter: function (params) {
+                    var p = params[0];
+                    var s = sorted[p.dataIndex];
+                    var tip = '<div style="font-weight:600;color:#1A2332;margin-bottom:4px;">' + p.name + '</div>' +
+                        '<div style="font-size:11.5px;color:#4A5870;margin-bottom:2px;">不合格批次：<b style="color:#E87722;">' + p.value + ' 批</b></div>';
+                    if (s) {
+                        var rate = s.total ? (s.ok / s.total * 100).toFixed(1) : '100.0';
+                        tip += '<div style="font-size:11px;color:#6B7A94;">检验总批次：' + s.total + ' 批 · 合格率：' + rate + '%</div>';
+                    }
+                    return tip;
+                }
+            },
+            grid: { left: 125, right: 38, top: 10, bottom: 20 },
+            xAxis: {
+                type: 'value',
+                min: 0,
+                max: maxVal,
+                axisLabel: { formatter: '{value}批', color: '#6B7A94', fontSize: 10 },
+                splitLine: { lineStyle: { color: '#F3F4F6' } }
+            },
+            yAxis: {
+                type: 'category',
+                inverse: true,
+                data: names,
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                axisLabel: { color: '#1A2332', fontSize: 11 }
+            },
+            dataZoom: [
+                {
+                    type: 'inside',
+                    yAxisIndex: 0,
+                    filterMode: 'empty',
+                    startValue: 0,
+                    endValue: 4,
+                    minValueSpan: 4,
+                    maxValueSpan: 4,
+                    zoomOnMouseWheel: false,
+                    moveOnMouseWheel: true,
+                    preventDefaultMouseMove: false
+                },
+                {
+                    type: 'slider',
+                    yAxisIndex: 0,
+                    filterMode: 'empty',
+                    startValue: 0,
+                    endValue: 4,
+                    width: 5,
+                    right: 4,
+                    top: 10,
+                    bottom: 22,
+                    borderColor: 'transparent',
+                    backgroundColor: 'rgba(26,35,50,0.05)',
+                    fillerColor: 'rgba(0,87,184,0.35)',
+                    borderRadius: 3,
+                    showDetail: false,
+                    showDataShadow: false,
+                    handleSize: '0%'
+                }
+            ],
+            series: [{
+                name: '不合格批次',
+                type: 'bar',
+                barWidth: 14,
+                data: vals,
+                itemStyle: {
+                    borderRadius: [0, 5, 5, 0],
+                    color: function (p) {
+                        if (p.dataIndex === 0) return '#E87722';
+                        if (p.dataIndex <= 2) return '#F39C12';
+                        return '#0057B8';
+                    }
+                },
+                label: {
+                    show: true,
+                    position: 'right',
+                    formatter: '{c} 批',
+                    color: '#4A5870',
+                    fontSize: 10.5,
+                    fontWeight: 'bold'
+                }
+            }]
+        }, true);
+    }
+
+    function renderIqcChart() {
+        var el = document.getElementById('iqcTrendChart');
+        if (!el) return;
+        charts.iqcTrend = charts.iqcTrend || echarts.init(el);
+        var q = DATA.iqc;
+
+        charts.iqcTrend.setOption({
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                formatter: function (params) {
+                    var tip = '<div style="font-weight:600;font-size:12px;color:#1A2332;margin-bottom:4px;">' + params[0].name + ' (当月累计)</div>';
+                    var total = 0;
+                    params.forEach(function (p) {
+                        if (p.seriesName === '合格批次' || p.seriesName === '不合格批次') {
+                            total += p.value;
+                        }
+                    });
+                    params.forEach(function (p) {
+                        var unit = p.seriesName === '来料合格率' ? '%' : ' 批';
+                        tip += '<div style="display:flex;justify-content:space-between;gap:16px;font-size:11.5px;color:#4A5870;padding:1px 0;">' +
+                            '<span>' + p.marker + p.seriesName + ':</span>' +
+                            '<span style="font-weight:600;color:#1A2332;">' + p.value + unit + '</span>' +
+                            '</div>';
+                    });
+                    if (total > 0) {
+                        tip += '<div style="display:flex;justify-content:space-between;gap:16px;font-size:11.5px;color:#6B7A94;border-top:1px solid #E5E7EB;padding-top:4px;margin-top:4px;font-weight:500;">' +
+                            '<span>当周总来料:</span><span style="font-weight:700;color:#0057B8;">' + total + ' 批</span></div>';
+                    }
+                    return tip;
+                }
+            },
+            legend: {
+                top: 0,
+                right: 8,
+                itemWidth: 12,
+                itemHeight: 8,
+                data: ['合格批次', '不合格批次', '来料合格率'],
+                textStyle: { fontSize: 11, color: '#6B7A94' }
+            },
+            grid: { left: 36, right: 42, top: 32, bottom: 22 },
+            xAxis: {
+                type: 'category',
+                data: q.weeks,
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                axisTick: { show: false },
+                axisLabel: { color: '#6B7A94', fontSize: 10.5 }
+            },
+            yAxis: [
+                {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: '#F3F4F6' } },
+                    axisLabel: { color: '#6B7A94', fontSize: 10 }
+                },
+                {
+                    type: 'value',
+                    min: 90,
+                    max: 100,
+                    splitLine: { show: false },
+                    axisLabel: { formatter: '{value}%', color: '#6B7A94', fontSize: 10 }
+                }
+            ],
+            series: [
+                {
+                    name: '合格批次',
+                    type: 'bar',
+                    stack: 'batches',
+                    barWidth: 18,
+                    itemStyle: { color: '#2FA984' },
+                    data: q.weekOkCum
+                },
+                {
+                    name: '不合格批次',
+                    type: 'bar',
+                    stack: 'batches',
+                    barWidth: 18,
+                    itemStyle: { color: '#E87722', borderRadius: [3, 3, 0, 0] },
+                    data: q.weekNgCum
+                },
+                {
+                    name: '来料合格率',
+                    type: 'line',
+                    yAxisIndex: 1,
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 6,
+                    itemStyle: { color: '#0057B8' },
+                    lineStyle: { width: 2.5, color: '#0057B8' },
+                    data: q.weekRateCum
+                }
+            ]
+        }, true);
+    }
+
+    var currentComplaintTab = 'brazing';
+
+    function switchComplaintTab(tab) {
+        currentComplaintTab = tab;
+        var btnBrazing = document.getElementById('complaintTabBrazing');
+        var btnDetachable = document.getElementById('complaintTabDetachable');
+        if (tab === 'brazing') {
+            if (btnBrazing) btnBrazing.className = 'px-3.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer bg-white text-[#0057B8] shadow-xs';
+            if (btnDetachable) btnDetachable.className = 'px-3.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer text-[#6B7A94] hover:text-[#1A2332]';
+            var t1 = document.getElementById('complaintWeekTitle'); if (t1) t1.innerText = '钎焊 · 客诉率与客诉关闭率周累计趋势';
+            var t2 = document.getElementById('complaintDutyTitle'); if (t2) t2.innerText = '钎焊 · 客诉原因分布';
+            var t3 = document.getElementById('complaintMonthlyTitle'); if (t3) t3.innerText = '钎焊 · 截至当前月的每月客诉趋势';
+        } else {
+            if (btnDetachable) btnDetachable.className = 'px-3.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer bg-white text-[#0057B8] shadow-xs';
+            if (btnBrazing) btnBrazing.className = 'px-3.5 py-1 text-xs font-semibold rounded-md transition-all cursor-pointer text-[#6B7A94] hover:text-[#1A2332]';
+            var t1 = document.getElementById('complaintWeekTitle'); if (t1) t1.innerText = '可拆 · 客诉率与客诉关闭率周累计趋势';
+            var t2 = document.getElementById('complaintDutyTitle'); if (t2) t2.innerText = '可拆 · 客诉原因分布';
+            var t3 = document.getElementById('complaintMonthlyTitle'); if (t3) t3.innerText = '可拆 · 截至当前月的每月客诉趋势';
+        }
+        renderComplaintModule();
+    }
+
+    function renderComplaintKpis() {
+        var row = document.getElementById('complaintsKpiRow');
+        if (!row) return;
+        var cur = DATA.complaints[currentComplaintTab];
+        var kpis = [
+            { label: '客诉数量', val: cur.count, unit: '起', valCls: 'val-up', desc: '当月客诉总起数' },
+            { label: '已关闭客诉', val: cur.closed, unit: '起', valCls: 'val-good', desc: '当月已闭环起数' },
+            { label: '未关闭客诉', val: cur.open, unit: '起', valCls: 'val-orange', desc: '推进处理中起数' },
+            { label: '客诉率', val: cur.rate.toFixed(2), unit: '%', valCls: 'val-up', desc: '客诉台数占比' },
+            { label: '客诉PPM', val: fmt(cur.ppm), unit: '', valCls: 'val-good', desc: '百万台客诉率' },
+            { label: '客诉关闭率', val: cur.closeRate.toFixed(1), unit: '%', valCls: 'val-good', desc: '闭环达成比例' }
+        ];
+
+        row.innerHTML = kpis.map(function(k) {
+            return '<div class="kpi-cell sales-overview-cell cursor-default" title="' + k.label + ' · ' + k.desc + '">' +
+                '<div class="kpi-label">' + k.label + '</div>' +
+                '<div class="kpi-value sales-overview-value ' + k.valCls + '">' + k.val + '<span class="unit text-xs">' + k.unit + '</span></div>' +
+                '</div>';
+        }).join('');
+    }
+
+    function renderComplaintWeekTrend() {
+        var el = document.getElementById('complaintWeekChart');
+        if (!el) return;
+        charts.complaintWeek = charts.complaintWeek || echarts.init(el);
+        var cur = DATA.complaints[currentComplaintTab];
+
+        charts.complaintWeek.setOption({
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'line' },
+                formatter: function(params) {
+                    var tip = params[0].name + '<br/>';
+                    params.forEach(function(p) {
+                        tip += p.marker + p.seriesName + ': <b>' + p.value + (p.seriesIndex === 0 ? '%' : '%') + '</b><br/>';
+                    });
+                    return tip;
+                }
+            },
+            legend: { 
+                top: 0, 
+                right: 10, 
+                itemWidth: 12, 
+                itemHeight: 8, 
+                textStyle: { fontSize: 11, color: '#6B7A94' } 
+            },
+            grid: { left: 45, right: 45, top: 24, bottom: 25 },
+            xAxis: {
+                type: 'category',
+                data: cur.weeks,
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                axisTick: { show: false },
+                axisLabel: { color: '#6B7A94', fontSize: 10.5 }
+            },
+            yAxis: [
+                {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: '#F3F4F6' } },
+                    axisLabel: { formatter: '{value}%', color: '#6B7A94', fontSize: 10 }
+                },
+                {
+                    type: 'value',
+                    min: 0,
+                    max: 100,
+                    splitLine: { show: false },
+                    axisLabel: { formatter: '{value}%', color: '#6B7A94', fontSize: 10 }
+                }
+            ],
+            series: [
+                {
+                    name: '客诉率累计',
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 6,
+                    itemStyle: { color: '#0057B8' },
+                    lineStyle: { width: 2.4, color: '#0057B8' },
+                    data: cur.weekRateCum
+                },
+                {
+                    name: '客诉关闭率累计',
+                    type: 'line',
+                    yAxisIndex: 1,
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 6,
+                    itemStyle: { color: '#2FA984' },
+                    lineStyle: { width: 2.4, color: '#2FA984' },
+                    data: cur.weekCloseRateCum
+                }
+            ]
+        }, true);
+    }
+
+    function renderComplaintDuty() {
+        var el = document.getElementById('complaintDutyChart');
+        if (!el) return;
+        charts.complaintDuty = charts.complaintDuty || echarts.init(el);
+        var cur = DATA.complaints[currentComplaintTab];
+        var causeData = cur.cause || cur.duty;
+
+        charts.complaintDuty.setOption({
+            tooltip: { trigger: 'item', formatter: '{b}<br/>客诉起数：<b>{c} 起</b> ({d}%)' },
+            legend: { 
+                orient: 'vertical', 
+                right: 16, 
+                top: 'middle', 
+                itemWidth: 10, 
+                itemHeight: 10, 
+                itemGap: 10,
+                textStyle: { fontSize: 11, color: '#6B7A94' }
+            },
+            series: [{
+                name: '客诉原因分布',
+                type: 'pie',
+                radius: ['42%', '72%'],
+                center: ['35%', '50%'],
+                avoidLabelOverlap: true,
+                itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 4 },
+                label: { show: false },
+                data: causeData
+            }]
+        }, true);
+    }
+
+    function renderComplaintMonthlyTrend() {
+        var el = document.getElementById('complaintMonthlyTrendChart');
+        if (!el) return;
+        charts.complaintMonthly = charts.complaintMonthly || echarts.init(el);
+        var cur = DATA.complaints[currentComplaintTab];
+
+        // 核心规则：仅展示截至当月月份，未来月份不展示
+        var p = (typeof BDLayout !== 'undefined' && BDLayout.getPeriod) ? BDLayout.getPeriod() : { month: '9月' };
+        var mIdx = parseInt(p.month) || 9;
+        var displayMonths = MONTHS.slice(0, mIdx);
+        var counts = cur.monthly.counts.slice(0, mIdx);
+        var closeRates = cur.monthly.closeRates.slice(0, mIdx);
+
+        charts.complaintMonthly.setOption({
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                formatter: function(params) {
+                    var tip = params[0].name + '<br/>';
+                    params.forEach(function(p) {
+                        var unit = p.seriesIndex === 0 ? ' 起' : '%';
+                        tip += p.marker + p.seriesName + ': <b>' + p.value + unit + '</b><br/>';
+                    });
+                    return tip;
+                }
+            },
+            legend: {
+                top: 0,
+                right: 15,
+                itemWidth: 12,
+                itemHeight: 8,
+                textStyle: { fontSize: 11, color: '#6B7A94' }
+            },
+            grid: { left: 45, right: 45, top: 24, bottom: 25 },
+            xAxis: {
+                type: 'category',
+                data: displayMonths,
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                axisTick: { show: false },
+                axisLabel: { color: '#6B7A94', fontSize: 10.5 }
+            },
+            yAxis: [
+                {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: '#F3F4F6' } },
+                    axisLabel: { color: '#6B7A94', fontSize: 10 }
+                },
+                {
+                    type: 'value',
+                    min: 0,
+                    max: 100,
+                    splitLine: { show: false },
+                    axisLabel: { formatter: '{value}%', color: '#6B7A94', fontSize: 10 }
+                }
+            ],
+            series: [
+                {
+                    name: '客诉数量',
+                    type: 'bar',
+                    barWidth: 18,
+                    itemStyle: {
+                        borderRadius: [3, 3, 0, 0],
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#0057B8' },
+                            { offset: 1, color: '#4F81BD' }
+                        ])
+                    },
+                    data: counts
+                },
+                {
+                    name: '客诉关闭率',
+                    type: 'line',
+                    yAxisIndex: 1,
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 6,
+                    itemStyle: { color: '#E87722' },
+                    lineStyle: { width: 2.2, color: '#E87722' },
+                    data: closeRates
+                }
+            ]
+        }, true);
+    }
+
+    function renderComplaintModule() {
+        renderComplaintKpis();
+        renderComplaintWeekTrend();
+        renderComplaintDuty();
+        renderComplaintMonthlyTrend();
+    }
+
+    function renderOpenComplaints() {
+        var tbody = document.getElementById('open-complaints-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = DATA.openComplaints.map(function (c) {
+            var overdueStr = c.overdue > 0 ? ('超期 ' + c.overdue + ' 天') : '正常';
+            return '<tr class="hover:bg-slate-50/70 transition-colors border-b border-[rgba(26,35,50,0.04)] text-[#1A2332]" style="height: 35px;">' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + c.no + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + c.cust + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + c.prod + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + c.desc + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + c.owner + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + c.status + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + overdueStr + '</td>' +
+                '<td class="py-1.5 px-3 text-right font-normal text-[#1A2332]">' + c.amt.toFixed(1) + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + (c.plan || '-') + '</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    function showToast(msg) {
+        var el = document.getElementById('qualityToast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'qualityToast';
+            el.className = 'fixed bottom-6 right-6 z-50 bg-[#1A2332] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs flex items-center gap-2 border border-slate-700/50 transition-all duration-300 opacity-0 pointer-events-none transform translate-y-2';
+            document.body.appendChild(el);
+        }
+        el.innerHTML = '<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>' + msg + '</span>';
+        el.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-2');
+        el.classList.add('opacity-100', 'translate-y-0');
+        setTimeout(function() {
+            el.classList.remove('opacity-100', 'translate-y-0');
+            el.classList.add('opacity-0', 'pointer-events-none', 'translate-y-2');
+        }, 3000);
+    }
+
+    function exportComplaintsExcel() {
+        if (!DATA.openComplaints || !DATA.openComplaints.length) {
+            alert('暂无客诉数据可供导出');
+            return;
+        }
+
+        var headers = ['客诉编号', '客户名称', '涉及产品', '问题描述', '责任人', '当前状态', '超期情况', '金额影响 (万元)', '拟处置方案 / 8D进展'];
+        var aoa = [headers];
+
+        DATA.openComplaints.forEach(function(c) {
+            aoa.push([
+                c.no,
+                c.cust,
+                c.prod,
+                c.desc,
+                c.owner,
+                c.status,
+                c.overdue > 0 ? ('超期 ' + c.overdue + ' 天') : '正常',
+                Number(c.amt),
+                c.plan || '-'
+            ]);
+        });
+
+        var now = new Date();
+        var y = now.getFullYear();
+        var m = String(now.getMonth() + 1).padStart(2, '0');
+        var d = String(now.getDate()).padStart(2, '0');
+        var fileName = '未关闭客诉跟踪台账_' + y + m + d + '.xlsx';
+
+        if (typeof XLSX !== 'undefined') {
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [
+                { wch: 15 }, // 客诉编号
+                { wch: 22 }, // 客户名称
+                { wch: 20 }, // 涉及产品
+                { wch: 22 }, // 问题描述
+                { wch: 10 }, // 责任人
+                { wch: 12 }, // 当前状态
+                { wch: 12 }, // 超期情况
+                { wch: 14 }, // 金额影响
+                { wch: 36 }  // 拟处置方案
+            ];
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '未关闭客诉台账');
+            XLSX.writeFile(wb, fileName);
+            showToast('已成功导出标准 Excel (.xlsx) 客诉跟踪台账！');
+        } else {
+            alert('Excel 导出组件加载中，请稍后再试！');
+        }
+    }
+
+    function onPeriodChange() {
+        var p = BDLayout.getPeriod();
+        var mIdx = parseInt(p.month) || 7;
+        var f = 0.9 + (mIdx % 5) * 0.05;
+        DATA.kpi.brazingPassQty = +(97.4 + (mIdx % 6) * 0.3).toFixed(1);
+        DATA.kpi.brazingPassWt = +(DATA.kpi.brazingPassQty + 0.2).toFixed(1);
+        DATA.kpi.reworkRate = +(2.6 - (mIdx % 6) * 0.28).toFixed(2);
+        DATA.kpi.scrapRateWt = +(0.7 + (mIdx % 4) * 0.06).toFixed(2);
+        DATA.kpi.scrapRateQty = +(DATA.kpi.scrapRateWt - 0.18).toFixed(2);
+        DATA.kpi.scrapAmt = +(11.8 * f).toFixed(1);
+        DATA.kpi.ppm = Math.round(118 * f);
+        DATA.kpi.iqcRate = +(96.2 + (mIdx % 4) * 0.3).toFixed(1);
+        var fIqc = 0.92 + (mIdx % 4) * 0.04;
+        var newTotal = Math.round(486 * fIqc);
+        var newRate = DATA.kpi.iqcRate;
+        var newOk = Math.round(newTotal * (newRate / 100));
+        var newNg = newTotal - newOk;
+        DATA.iqc.total = newTotal;
+        DATA.iqc.ok = newOk;
+        DATA.iqc.ng = newNg;
+        DATA.iqc.rate = newRate;
+        DATA.iqc.weekOkCum = [
+            Math.round(newOk * 0.20),
+            Math.round(newOk * 0.40),
+            Math.round(newOk * 0.60),
+            Math.round(newOk * 0.81),
+            newOk
+        ];
+        DATA.iqc.weekNgCum = [
+            Math.max(1, Math.round(newNg * 0.15)),
+            Math.max(2, Math.round(newNg * 0.35)),
+            Math.max(3, Math.round(newNg * 0.65)),
+            Math.max(4, Math.round(newNg * 0.80)),
+            newNg
+        ];
+        DATA.iqc.weekRateCum = DATA.iqc.weekOkCum.map(function(ok, idx) {
+            var ng = DATA.iqc.weekNgCum[idx];
+            return +((ok / (ok + ng)) * 100).toFixed(1);
+        });
+        var sShares = [0.28, 0.22, 0.16, 0.14, 0.08, 0.06, 0.06, 0, 0, 0];
+        DATA.iqc.suppliers.forEach(function(s, idx) {
+            var ngVal = Math.round(newNg * sShares[idx]);
+            s.ng = ngVal;
+            s.total = Math.round(s.total * fIqc);
+            s.ok = s.total - s.ng;
+        });
+        DATA.kpi.detPass = +(98.2 + (mIdx % 5) * 0.15).toFixed(2);
+        DATA.kpi.plateRateWt = +(0.78 + (mIdx % 4) * 0.05).toFixed(2);
+        DATA.complaints.brazing.count = Math.max(4, Math.round(8 * f));
+        DATA.complaints.brazing.ppm = DATA.kpi.ppm;
+        DATA.complaints.brazing.closed = Math.max(2, Math.round(DATA.complaints.brazing.count * 0.625));
+        DATA.complaints.brazing.open = DATA.complaints.brazing.count - DATA.complaints.brazing.closed;
+        DATA.complaints.brazing.closeRate = +(DATA.complaints.brazing.closed / DATA.complaints.brazing.count * 100).toFixed(1);
+        renderKPIs(); renderWorkshop(); renderIqc(); renderComplaintModule(); renderOpenComplaints();
+    }
+    window.onPeriodChange = onPeriodChange;
+
+    BDLayout.render({ active: 'prod-quality', title: '质量管控' });
+    renderKPIs();
+    renderWorkshop();
+    renderIqc();
+    renderComplaintModule();
+    renderOpenComplaints();
+    window.addEventListener('resize', function () { Object.values(charts).forEach(function (c) { if (c) c.resize(); }); });
+    </script>
+</body>
+</html>

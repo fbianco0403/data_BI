@@ -1,0 +1,841 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>研发分析中心 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        .rd-grid-row {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 10px;
+        }
+        @media (max-width: 1200px) {
+            .rd-grid-row { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .rd-grid-row { grid-template-columns: repeat(2, 1fr); }
+        }
+        .table-scroll-container::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.03);
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: rgba(0, 87, 184, 0.2);
+            border-radius: 2px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 87, 184, 0.4);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+
+        <!-- ============== 左侧导航栏 (静态预渲染，杜绝切换闪烁) ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <!-- ============== 主内容区 ============== -->
+        <main class="flex-1 overflow-auto">
+            <!-- 顶部导航条 -->
+                        <!-- 顶部导航条 (与企业经营驾驶舱 100% 相同，已取消导出数据按钮) -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5">
+                <div class="flex items-center justify-between">
+                    <!-- 左侧：页面标题 -->
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">研发分析中心</span>
+                    </div>
+
+                    <!-- 右侧：年月选择胶囊 (与驾驶舱 100% 保持一致：动态近三年与未来月份拦截) -->
+                    <div class="flex items-center">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <!-- 年份选择触发器 -->
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 年份下拉菜单 (动态渲染近三年) -->
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+
+                                <!-- 月份选择触发器 -->
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 月份下拉菜单 (动态禁用未来月份) -->
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                                        <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                            <span>选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+
+                <!-- 模块：研发总览与重大项目分析看板（企业经营驾驶舱同款卡片级封装） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">研发分析总览</h3>
+                        </div>
+
+                        <!-- 顶部：9大核心研发指标（统一采用 sales-overview-grid 与 sales-overview-cell） -->
+                        <div class="sales-overview-grid mb-3">
+                            <div class="sales-overview-cell">
+                                <div class="kpi-label" title="新产品销售额">新产品销售额</div>
+                                <div class="kpi-value sales-overview-value val-blue">3,450<span class="unit text-xs">万</span></div>
+                            </div>
+                            <div class="sales-overview-cell">
+                                <div class="kpi-label" title="产品开发数量">产品开发数量</div>
+                                <div class="kpi-value sales-overview-value val-white">28<span class="unit text-xs">款</span></div>
+                            </div>
+                            <div class="sales-overview-cell">
+                                <div class="kpi-label" title="新品研发完成率">新品研发完成率</div>
+                                <div class="kpi-value sales-overview-value val-good">96.4<span class="unit text-xs">%</span></div>
+                            </div>
+                            <div class="sales-overview-cell">
+                                <div class="kpi-label" title="降本项目数量">降本项目数量</div>
+                                <div class="kpi-value sales-overview-value val-white">16<span class="unit text-xs">个</span></div>
+                            </div>
+                            <div class="sales-overview-cell">
+                                <div class="kpi-label" title="降本项目完成率">降本项目完成率</div>
+                                <div class="kpi-value sales-overview-value val-good">93.8<span class="unit text-xs">%</span></div>
+                            </div>
+                            <div class="sales-overview-cell">
+                                <div class="kpi-label" title="新品人均销售额">新品人均销售额</div>
+                                <div class="kpi-value sales-overview-value val-blue">136.8<span class="unit text-xs">万</span></div>
+                            </div>
+                            <div class="sales-overview-cell">
+                                <div class="kpi-label" title="模具生产计划达成率">模具生产计划达成率</div>
+                                <div class="kpi-value sales-overview-value val-good">96.5<span class="unit text-xs">%</span></div>
+                            </div>
+                            <div class="sales-overview-cell">
+                                <div class="kpi-label" title="模具维修及时率">模具维修及时率</div>
+                                <div class="kpi-value sales-overview-value val-good">98.2<span class="unit text-xs">%</span></div>
+                            </div>
+                            <div class="sales-overview-cell">
+                                <div class="kpi-label" title="模具维修返工次数">模具维修返工次数</div>
+                                <div class="kpi-value sales-overview-value val-orange">2<span class="unit text-xs">次</span></div>
+                            </div>
+                        </div>
+
+                        <!-- 研发部项目分析（嵌入在 .chart-card 玻璃子卡片内） -->
+                        <div class="chart-card flex flex-col justify-start" style="min-height: 380px;">
+                    <!-- 标题栏：左侧标题与 4-Tab 切换器，右侧动态统计徽标 -->
+                    <div class="flex items-center justify-between mb-2.5 flex-shrink-0">
+                        <div class="flex items-center">
+                            <span class="section-title text-base font-bold">研发部项目分析大盘</span>
+                            <!-- 胶囊分段 4-Tab 切换 -->
+                            <div class="inline-flex p-0.5 rounded-lg bg-[rgba(26,35,50,0.06)] border border-[rgba(26,35,50,0.08)] ml-4">
+                                <button type="button" id="tabBtnRdStatus" onclick="switchRdTab('status')" class="px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-[#0057B8] shadow-sm">
+                                    项目情况汇总
+                                </button>
+                                <button type="button" id="tabBtnRdRevenue" onclick="switchRdTab('revenue')" class="px-3 py-1.5 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]">
+                                    项目收益汇总
+                                </button>
+                                <button type="button" id="tabBtnRdOverdue" onclick="switchRdTab('overdue')" class="px-3 py-1.5 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]">
+                                    逾期项目分析
+                                </button>
+                                <button type="button" id="tabBtnRdTasks" onclick="switchRdTab('tasks')" class="px-3 py-1.5 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]">
+                                    重点任务跟踪
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 右侧徽标（根据 4-Tab 动态联动） -->
+                        <div id="rdTabBadgesStatus" class="flex items-center gap-2 text-xs">
+                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-[#5F8E68]/15 text-[#426949] border border-[#5F8E68]/30 text-xs">
+                                <span class="w-1.5 h-1.5 rounded-full bg-[#5F8E68]"></span>正常推进 21
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-[#6B8EA8]/15 text-[#486B85] border border-[#6B8EA8]/30 text-xs">
+                                阶段逾期 7
+                            </span>
+                        </div>
+                        <div id="rdTabBadgesRevenue" class="hidden flex items-center gap-2 text-xs">
+                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-[#0057B8]/10 text-[#0057B8] border border-[#0057B8]/20 text-xs">
+                                新品销售 3,450万
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-[#5F8E68]/15 text-[#426949] border border-[#5F8E68]/30 text-xs">
+                                降本收益 186万
+                            </span>
+                        </div>
+                        <div id="rdTabBadgesOverdue" class="hidden flex items-center gap-2 text-xs">
+                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-[#D0021B]/10 text-[#D0021B] border border-[#D0021B]/20 text-xs">
+                                重点逾期 4项
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-[#6B8EA8]/15 text-[#486B85] border border-[#6B8EA8]/30 text-xs">
+                                关键卡点 3处
+                            </span>
+                        </div>
+                        <div id="rdTabBadgesTasks" class="hidden flex items-center gap-2 text-xs">
+                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-[#0057B8]/10 text-[#0057B8] border border-[#0057B8]/20 text-xs">
+                                产学研课题 6项
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-3 py-1 rounded-full font-bold bg-[#5F8E68]/15 text-[#426949] border border-[#5F8E68]/30 text-xs">
+                                全部在轨推进
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 内容区域：Tab 1 项目情况汇总 -->
+                    <div id="rdTabContentStatus" class="w-full flex-1 flex flex-col min-h-0">
+                        <table class="w-full text-center text-xs border-collapse flex-1" style="table-layout: fixed;">
+                            <thead>
+                                <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-xs font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                    <th class="px-3 rounded-l text-center font-bold" style="width: 20%; vertical-align: middle;">工作类型</th>
+                                    <th class="px-3 text-center font-bold" style="width: 20%; vertical-align: middle;">总数</th>
+                                    <th class="px-3 text-center font-bold" style="width: 20%; vertical-align: middle;">正常推进</th>
+                                    <th class="px-3 text-center font-bold" style="width: 20%; vertical-align: middle;">阶段逾期</th>
+                                    <th class="px-3 rounded-r text-center font-bold" style="width: 20%; vertical-align: middle;">正常推进率</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-xs">
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 36px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">新品项目</td>
+                                    <td class="px-3 text-center font-mono font-bold" style="vertical-align: middle;">12</td>
+                                    <td class="px-3 text-center font-mono font-bold text-[#5F8E68]" style="vertical-align: middle;">8</td>
+                                    <td class="px-3 text-center font-mono font-bold text-[#6B8EA8]" style="vertical-align: middle;">4</td>
+                                    <td class="px-3 text-center" style="vertical-align: middle;">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <div class="w-28 bg-slate-200/80 rounded-full h-2 overflow-hidden">
+                                                <div class="bg-[#2E6EB5] h-2 rounded-full" style="width: 66.7%"></div>
+                                            </div>
+                                            <span class="font-mono font-bold text-xs w-12 text-left">66.7%</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 36px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">降本增效项目</td>
+                                    <td class="px-3 text-center font-mono font-bold" style="vertical-align: middle;">9</td>
+                                    <td class="px-3 text-center font-mono font-bold text-[#5F8E68]" style="vertical-align: middle;">6</td>
+                                    <td class="px-3 text-center font-mono font-bold text-[#6B8EA8]" style="vertical-align: middle;">3</td>
+                                    <td class="px-3 text-center" style="vertical-align: middle;">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <div class="w-28 bg-slate-200/80 rounded-full h-2 overflow-hidden">
+                                                <div class="bg-[#2E6EB5] h-2 rounded-full" style="width: 66.7%"></div>
+                                            </div>
+                                            <span class="font-mono font-bold text-xs w-12 text-left">66.7%</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 36px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">专利申请</td>
+                                    <td class="px-3 text-center font-mono font-bold" style="vertical-align: middle;">4</td>
+                                    <td class="px-3 text-center font-mono font-bold text-[#5F8E68]" style="vertical-align: middle;">4</td>
+                                    <td class="px-3 text-center font-mono text-slate-400" style="vertical-align: middle;">-</td>
+                                    <td class="px-3 text-center" style="vertical-align: middle;">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <div class="w-28 bg-slate-200/80 rounded-full h-2 overflow-hidden">
+                                                <div class="bg-[#5F8E68] h-2 rounded-full" style="width: 100%"></div>
+                                            </div>
+                                            <span class="font-mono font-bold text-xs w-12 text-left">100%</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 36px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">ASME项目</td>
+                                    <td class="px-3 text-center font-mono font-bold" style="vertical-align: middle;">1</td>
+                                    <td class="px-3 text-center font-mono font-bold text-[#5F8E68]" style="vertical-align: middle;">1</td>
+                                    <td class="px-3 text-center font-mono text-slate-400" style="vertical-align: middle;">-</td>
+                                    <td class="px-3 text-center" style="vertical-align: middle;">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <div class="w-28 bg-slate-200/80 rounded-full h-2 overflow-hidden">
+                                                <div class="bg-[#5F8E68] h-2 rounded-full" style="width: 100%"></div>
+                                            </div>
+                                            <span class="font-mono font-bold text-xs w-12 text-left">100%</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 36px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">工艺与技改项目</td>
+                                    <td class="px-3 text-center font-mono font-bold" style="vertical-align: middle;">2</td>
+                                    <td class="px-3 text-center font-mono font-bold text-[#5F8E68]" style="vertical-align: middle;">2</td>
+                                    <td class="px-3 text-center font-mono text-slate-400" style="vertical-align: middle;">-</td>
+                                    <td class="px-3 text-center" style="vertical-align: middle;">
+                                        <div class="flex items-center justify-center gap-2">
+                                            <div class="w-28 bg-slate-200/80 rounded-full h-2 overflow-hidden">
+                                                <div class="bg-[#5F8E68] h-2 rounded-full" style="width: 100%"></div>
+                                            </div>
+                                            <span class="font-mono font-bold text-xs w-12 text-left">100%</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 内容区域：Tab 2 项目收益汇总 -->
+                    <div id="rdTabContentRevenue" class="hidden w-full flex-1 flex flex-col min-h-0">
+                        <table class="w-full text-center text-xs border-collapse flex-1" style="table-layout: fixed;">
+                            <thead>
+                                <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-xs font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                    <th class="px-3 rounded-l text-center font-bold" style="width: 15%; vertical-align: middle;">项目名称</th>
+                                    <th class="px-3 text-center font-bold" style="width: 12%; vertical-align: middle;">计划完成</th>
+                                    <th class="px-3 text-center font-bold" style="width: 12%; vertical-align: middle;">目前完成</th>
+                                    <th class="px-3 text-center font-bold" style="width: 15%; vertical-align: middle;">26年销售额</th>
+                                    <th class="px-3 text-center font-bold" style="width: 16%; vertical-align: middle;">毛利/降本收益</th>
+                                    <th class="px-3 text-center rounded-r font-bold" style="width: 30%; vertical-align: middle;">下一步工作计划</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-xs">
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 52px;">
+                                    <td class="px-3 text-center font-bold text-[#2E6EB5]" style="vertical-align: middle;">26年新品</td>
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;"><span class="font-mono">8</span>款</td>
+                                    <td class="px-3 text-center font-medium font-semibold text-[#5F8E68]" style="vertical-align: middle;"><span class="font-mono">2</span>款</td>
+                                    <td class="px-3 text-center font-medium font-bold text-[#2E6EB5]" style="vertical-align: middle;"><span class="font-mono">3,450</span>万</td>
+                                    <td class="px-3 text-center font-medium font-bold text-[#5F8E68]" style="vertical-align: middle;"><span class="font-mono">1,280</span>万</td>
+                                    <td class="px-3 text-center text-slate-600 leading-snug" style="vertical-align: middle;">加速 3# 钎焊板片量产验证，预计 Q3 全面达产</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 52px;">
+                                    <td class="px-3 text-center font-bold text-[#2E6EB5]" style="vertical-align: middle;">26年降本增效</td>
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;"><span class="font-mono">300</span>万</td>
+                                    <td class="px-3 text-center font-medium font-semibold text-[#5F8E68]" style="vertical-align: middle;"><span class="font-mono">186</span>万</td>
+                                    <td class="px-3 text-center font-mono text-slate-400" style="vertical-align: middle;">-</td>
+                                    <td class="px-3 text-center font-medium font-bold text-[#5F8E68]" style="vertical-align: middle;">+<span class="font-mono">186</span>万</td>
+                                    <td class="px-3 text-center text-slate-600 leading-snug" style="vertical-align: middle;">全面推进不锈钢 304 材料替代与钎焊工艺工时优化</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 52px;">
+                                    <td class="px-3 text-center font-bold text-[#2E6EB5]" style="vertical-align: middle;">25年新品</td>
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;"><span class="font-mono">6</span>款</td>
+                                    <td class="px-3 text-center font-medium font-semibold text-[#5F8E68]" style="vertical-align: middle;">已结项</td>
+                                    <td class="px-3 text-center font-medium font-bold text-[#2E6EB5]" style="vertical-align: middle;"><span class="font-mono">4,200</span>万</td>
+                                    <td class="px-3 text-center font-medium font-bold text-[#5F8E68]" style="vertical-align: middle;"><span class="font-mono">1,560</span>万</td>
+                                    <td class="px-3 text-center text-slate-600 leading-snug" style="vertical-align: middle;">深化暖通与石化头部标杆客户二次复购与渠道渗透</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 内容区域：Tab 3 逾期项目分析 -->
+                    <div id="rdTabContentOverdue" class="hidden w-full flex-1 flex flex-col min-h-0">
+                        <table class="w-full text-center text-xs border-collapse flex-1" style="table-layout: fixed;">
+                            <thead>
+                                <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-xs font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                    <th class="px-3 rounded-l text-center font-bold" style="width: 12%; vertical-align: middle;">项目类型</th>
+                                    <th class="px-3 text-center font-bold" style="width: 14%; vertical-align: middle;">项目名称</th>
+                                    <th class="px-3 text-center font-bold" style="width: 15%; vertical-align: middle;">目前阶段与开始时间</th>
+                                    <th class="px-3 text-center font-bold" style="width: 23%; vertical-align: middle;">卡点情况</th>
+                                    <th class="px-3 text-center font-bold" style="width: 16%; vertical-align: middle;">目前已做工作</th>
+                                    <th class="px-3 text-center rounded-r font-bold" style="width: 20%; vertical-align: middle;">下一步计划/需协调工作</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-xs">
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 50px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">新品</td>
+                                    <td class="px-3 text-center font-bold text-[#2E6EB5]" style="vertical-align: middle;">BL240</td>
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">试模阶段 (8/8)</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">BL240-S-X和BL240-A-D还在修模中</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">模具厂驻场跟踪推进</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">正常时效/最坏+1/3时间出件</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 50px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">新品</td>
+                                    <td class="px-3 text-center font-bold text-[#2E6EB5]" style="vertical-align: middle;">BP350机组</td>
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">装配测试 (8/12)</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">传感器供应商交期延期5天</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">已锁定备选供方样品测试</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">协调采购加急空运，周五交付</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 50px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">降本增效</td>
+                                    <td class="px-3 text-center font-bold text-[#2E6EB5]" style="vertical-align: middle;">钎焊工艺工时</td>
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">工艺评定 (8/5)</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">连续炉温控测试需二次复标</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">已完成首轮3组试样数据采集</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">联合质量部周三前完成评审定型</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 50px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">专利申请</td>
+                                    <td class="px-3 text-center font-bold text-[#2E6EB5]" style="vertical-align: middle;">双回路板型专利</td>
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">审查答辩 (8/18)</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">审查意见补充实验数据</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">已整理完成热工实测曲线图</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">代理机构完成二次答辩提交</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 内容区域：Tab 4 重点任务跟踪 -->
+                    <div id="rdTabContentTasks" class="hidden w-full flex-1 flex flex-col min-h-0">
+                        <table class="w-full text-center text-xs border-collapse flex-1" style="table-layout: fixed;">
+                            <thead>
+                                <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-xs font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                    <th class="px-3 rounded-l text-center font-bold" style="width: 22%; vertical-align: middle;">任务</th>
+                                    <th class="px-3 text-center font-bold" style="width: 12%; vertical-align: middle;">计划完成时间</th>
+                                    <th class="px-3 text-center font-bold" style="width: 10%; vertical-align: middle;">责任人</th>
+                                    <th class="px-3 text-center font-bold" style="width: 18%; vertical-align: middle;">存在问题</th>
+                                    <th class="px-3 text-center font-bold" style="width: 19%; vertical-align: middle;">目前已做工作</th>
+                                    <th class="px-3 text-center rounded-r font-bold" style="width: 19%; vertical-align: middle;">下一步工作计划</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-xs">
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 44px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">新员工培训计划</td>
+                                    <td class="px-3 text-center font-medium text-slate-600" style="vertical-align: middle;">09-30</td>
+                                    <td class="px-3 text-center font-semibold text-[#2E6EB5]" style="vertical-align: middle;">张工</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">产线排产紧凑</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">技能清单、员工反馈</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">实操集中安排于交接班</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 44px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">华中-铜箔自动收料课题</td>
+                                    <td class="px-3 text-center font-medium text-slate-600" style="vertical-align: middle;">10-31</td>
+                                    <td class="px-3 text-center font-semibold text-[#2E6EB5]" style="vertical-align: middle;">李工</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">收卷张力微波动</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">机械三维建模与电控架构</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">联合华中大团队实机联调</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 44px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">华中-自动胀管课题</td>
+                                    <td class="px-3 text-center font-medium text-slate-600" style="vertical-align: middle;">11-30</td>
+                                    <td class="px-3 text-center font-semibold text-[#2E6EB5]" style="vertical-align: middle;">王工</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">胀头磨损寿命待提升</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">完成 3 种表面涂层实验</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">耐磨合金涂层小批打样</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 44px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">华中-钎焊换热器板片成型模拟分析</td>
+                                    <td class="px-3 text-center font-medium text-slate-600" style="vertical-align: middle;">10-15</td>
+                                    <td class="px-3 text-center font-semibold text-[#2E6EB5]" style="vertical-align: middle;">赵工</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">网格计算规模庞大</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">建立非线性成型仿真模型</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">输出板片变薄率补偿方案</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 44px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">华中-模具智能化设计制造管理软件</td>
+                                    <td class="px-3 text-center font-medium text-slate-600" style="vertical-align: middle;">12-15</td>
+                                    <td class="px-3 text-center font-semibold text-[#2E6EB5]" style="vertical-align: middle;">陈工</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">历史图纸清洗工作量大</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">特征库参数化字典定义</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">开发 CAD 自动参数化出图插件</td>
+                                </tr>
+                                <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 44px;">
+                                    <td class="px-3 text-center font-medium" style="vertical-align: middle;">西交-钎焊换热器选型软件开发</td>
+                                    <td class="px-3 text-center font-medium text-slate-600" style="vertical-align: middle;">11-15</td>
+                                    <td class="px-3 text-center font-semibold text-[#2E6EB5]" style="vertical-align: middle;">孙工</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">混合制冷剂物性库扩展</td>
+                                    <td class="px-3 text-center text-slate-600" style="vertical-align: middle;">完成单相及相变热阻算法</td>
+                                    <td class="px-3 text-center text-slate-700" style="vertical-align: middle;">开展 50 组标准工况实验标定</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                    </div>
+                </div>
+
+                <!-- 模块 2：研发推进状态分布与商业化收益转化（深度提炼自研发总览与项目大盘数据） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">研发推进状态与商业化收益转化</h3>
+                        </div>
+
+                        <div class="multi-chart-row two">
+                            <!-- 图表 1：各工作类型项目分布与推进状态 (提炼自 Tab 1 项目情况汇总) -->
+                            <div class="chart-card">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <div class="chart-card-title mb-0">
+                                        <span class="chart-card-title-text">各工作类型项目分布与推进状态</span>
+                                    </div>
+                                </div>
+                                <div id="rdStatusDistChart" class="chart-box" style="height: 230px; min-height: 230px;"></div>
+                            </div>
+
+                            <!-- 图表 2：研发项目销售贡献与降本收益转化 (提炼自 Tab 2 项目收益汇总) -->
+                            <div class="chart-card">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <div class="chart-card-title mb-0">
+                                        <span class="chart-card-title-text">研发项目销售额贡献与降本增效转化</span>
+                                    </div>
+                                    <span class="text-[11px] text-[#5F8E68] font-bold">累计贡献销售 7,650万 · 降本 396万</span>
+                                </div>
+                                <div id="rdBenefitChart" class="chart-box" style="height: 230px; min-height: 230px;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 3：模具全生命周期管理 -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-3 flex-wrap gap-2">
+                            <div>
+                                <h3 class="section-title">模具全生命周期管理</h3>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-[#8DC63F]/15 text-[#4E7F17] border border-[#8DC63F]/30">
+                                    量产在役 142套
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-[#0057B8] border border-blue-500/20">
+                                    计划维保 11套
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                    寿命预警 3套
+                                </span>
+                            </div>
+                        </div>
+
+                        <div class="overflow-y-auto overflow-x-auto table-scroll-container rounded border border-[rgba(26,35,50,0.06)] bg-white/40" style="height: 240px; max-height: 240px;">
+                            <table class="w-full text-xs text-left">
+                                <thead class="sticky top-0 z-10 bg-[#EEF3F8] shadow-xs">
+                                    <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 32px;">
+                                        <th class="py-2 px-3 text-left">模具编码</th>
+                                        <th class="py-2 px-3 text-left">模具名称</th>
+                                        <th class="py-2 px-3 text-right">生命周期</th>
+                                        <th class="py-2 px-3 text-right">剩余寿命</th>
+                                        <th class="py-2 px-3 text-right">保修次数</th>
+                                        <th class="py-2 px-3 text-right">维修次数</th>
+                                        <th class="py-2 px-3 text-left">点检记录</th>
+                                        <th class="py-2 px-3 text-right">维修及时率</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mold-tbody" class="divide-y divide-[rgba(26,35,50,0.05)]"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    /* ============================================================
+       研发部 4-Tab 切换引擎
+       ============================================================ */
+    function switchRdTab(tabKey) {
+        var tabs = ['Status', 'Revenue', 'Overdue', 'Tasks'];
+        var currentKeyMap = {
+            status: 'Status',
+            revenue: 'Revenue',
+            overdue: 'Overdue',
+            tasks: 'Tasks'
+        };
+        var currentUpper = currentKeyMap[tabKey] || 'Status';
+
+        tabs.forEach(function(t) {
+            var btn = document.getElementById('tabBtnRd' + t);
+            var content = document.getElementById('rdTabContent' + t);
+            var badges = document.getElementById('rdTabBadges' + t);
+
+            if (t === currentUpper) {
+                if (btn) {
+                    btn.className = 'px-3 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-[#0057B8] shadow-sm';
+                }
+                if (content) {
+                    content.classList.remove('hidden');
+                }
+                if (badges) {
+                    badges.classList.remove('hidden');
+                }
+            } else {
+                if (btn) {
+                    btn.className = 'px-3 py-1.5 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]';
+                }
+                if (content) {
+                    content.classList.add('hidden');
+                }
+                if (badges) {
+                    badges.classList.add('hidden');
+                }
+            }
+        });
+    }
+
+    /* ============================================================
+       研发分析中心 ECharts 可视化图表引擎 (提炼自研发总览与项目大盘)
+       ============================================================ */
+    var rdCharts = {};
+
+    function renderRdCharts() {
+        // 1. 图表 1：各工作类型项目数与推进状态分布 (提炼自 Tab 1 项目情况汇总)
+        var statusEl = document.getElementById('rdStatusDistChart');
+        if (statusEl) {
+            rdCharts.status = rdCharts.status || echarts.init(statusEl);
+            var categories = ['新品项目', '降本增效', '基础前沿', '资质认证', '工艺技改'];
+            var normalData = [8, 6, 3, 2, 2];
+            var overdueData = [4, 3, 0, 0, 0];
+            var rateData = [66.7, 66.7, 100.0, 100.0, 100.0];
+
+            rdCharts.status.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                    borderColor: 'rgba(255,255,255,0.2)',
+                    textStyle: { color: '#FFFFFF', fontSize: 12 },
+                    axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(0,87,184,0.06)' } },
+                    formatter: function(params) {
+                        var html = '<div class="font-bold mb-1 text-xs text-white/90">' + params[0].axisValue + ' 项目执行情况</div>';
+                        var total = 0;
+                        params.forEach(function(p) {
+                            if (p.seriesName !== '正常推进率') {
+                                total += p.value;
+                                html += '<div class="flex items-center justify-between gap-4 text-xs">' +
+                                    '<span>' + p.marker + ' ' + p.seriesName + '</span>' +
+                                    '<span class="font-mono font-bold">' + p.value + ' 项</span></div>';
+                            } else {
+                                html += '<div class="flex items-center justify-between gap-4 text-xs mt-1 pt-1 border-t border-white/20">' +
+                                    '<span>' + p.marker + ' ' + p.seriesName + '</span>' +
+                                    '<span class="font-mono font-bold text-[#00B2E3]">' + p.value + '%</span></div>';
+                            }
+                        });
+                        return html;
+                    }
+                },
+                legend: {
+                    top: 0,
+                    right: 0,
+                    itemWidth: 12,
+                    itemHeight: 8,
+                    textStyle: { fontSize: 11, color: '#6B7A94' },
+                    data: ['正常推进', '阶段逾期', '正常推进率']
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    top: '16%',
+                    bottom: '5%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: categories,
+                    axisLine: { lineStyle: { color: 'rgba(26,35,50,0.15)' } },
+                    axisLabel: { color: '#1A2332', fontSize: 11, fontWeight: 500 }
+                },
+                yAxis: [
+                    {
+                        type: 'value',
+                        splitLine: { lineStyle: { color: 'rgba(26,35,50,0.06)', type: 'dashed' } },
+                        axisLabel: { color: '#6B7A94', fontSize: 10 }
+                    },
+                    {
+                        type: 'value',
+                        min: 0,
+                        max: 100,
+                        splitLine: { show: false },
+                        axisLabel: { formatter: '{value}%', color: '#6B7A94', fontSize: 10 }
+                    }
+                ],
+                series: [
+                    {
+                        name: '正常推进',
+                        type: 'bar',
+                        stack: 'total',
+                        barWidth: '28%',
+                        itemStyle: {
+                            color: '#5F8E68',
+                            borderRadius: [0, 0, 0, 0]
+                        },
+                        data: normalData
+                    },
+                    {
+                        name: '阶段逾期',
+                        type: 'bar',
+                        stack: 'total',
+                        barWidth: '28%',
+                        itemStyle: {
+                            color: '#6B8EA8',
+                            borderRadius: [3, 3, 0, 0]
+                        },
+                        data: overdueData
+                    },
+                    {
+                        name: '正常推进率',
+                        type: 'line',
+                        yAxisIndex: 1,
+                        smooth: true,
+                        showSymbol: true,
+                        symbolSize: 6,
+                        itemStyle: { color: '#0057B8' },
+                        lineStyle: { color: '#0057B8', width: 2.2 },
+                        data: rateData
+                    }
+                ]
+            });
+        }
+
+        // 2. 图表 2：研发项目商业化销售贡献与降本增效收益转化 (提炼自 Tab 2 项目收益汇总)
+        var benefitEl = document.getElementById('rdBenefitChart');
+        if (benefitEl) {
+            rdCharts.benefit = rdCharts.benefit || echarts.init(benefitEl);
+            var benefitCats = ['26年新品开发', '25年结项新品', '26年降本增效', '25年降本持续'];
+            // 主体规模 (新品为销售额, 降本为目标规模)
+            var scaleData = [3450, 4200, 300, 210];
+            // 净收益贡献 (新品为产生毛利, 降本为实现收益)
+            var gainData = [1280, 1650, 186, 210];
+
+            rdCharts.benefit.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                    borderColor: 'rgba(255,255,255,0.2)',
+                    textStyle: { color: '#FFFFFF', fontSize: 12 },
+                    axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(0,87,184,0.06)' } },
+                    formatter: function(params) {
+                        var cat = params[0].axisValue;
+                        var html = '<div class="font-bold mb-1 text-xs text-white/90">' + cat + ' 收益提炼</div>';
+                        params.forEach(function(p) {
+                            var unit = ' 万元';
+                            html += '<div class="flex items-center justify-between gap-4 text-xs">' +
+                                '<span>' + p.marker + ' ' + p.seriesName + '</span>' +
+                                '<span class="font-mono font-bold">' + p.value + unit + '</span></div>';
+                        });
+                        return html;
+                    }
+                },
+                legend: {
+                    top: 0,
+                    right: 0,
+                    itemWidth: 12,
+                    itemHeight: 8,
+                    textStyle: { fontSize: 11, color: '#6B7A94' },
+                    data: ['销售额 / 目标规模', '产生毛利 / 降本收益']
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    top: '16%',
+                    bottom: '5%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: benefitCats,
+                    axisLine: { lineStyle: { color: 'rgba(26,35,50,0.15)' } },
+                    axisLabel: { color: '#1A2332', fontSize: 11, fontWeight: 500 }
+                },
+                yAxis: {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: 'rgba(26,35,50,0.06)', type: 'dashed' } },
+                    axisLabel: { color: '#6B7A94', fontSize: 10 }
+                },
+                series: [
+                    {
+                        name: '销售额 / 目标规模',
+                        type: 'bar',
+                        barWidth: '24%',
+                        itemStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#0057B8' },
+                                { offset: 1, color: '#2E6EB5' }
+                            ]),
+                            borderRadius: [3, 3, 0, 0]
+                        },
+                        data: scaleData
+                    },
+                    {
+                        name: '产生毛利 / 降本收益',
+                        type: 'bar',
+                        barWidth: '24%',
+                        itemStyle: {
+                            color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                                { offset: 0, color: '#5F8E68' },
+                                { offset: 1, color: '#8DC63F' }
+                            ]),
+                            borderRadius: [3, 3, 0, 0]
+                        },
+                        data: gainData
+                    }
+                ]
+            });
+        }
+    }
+
+    /* ============================================================
+       模具全生命周期管理数据与表格渲染
+       ============================================================ */
+    var MOLD_LIST = [
+        { code: 'MD-PRS-101', name: 'B3-030 型板片人字形波纹成型主模', lifecycle: '50万次', remainLife: '38.5万次', pmCount: 6, repairCount: 1, checkRecord: '09-14 已检 · 刃口正常', timelyRate: '100.0%' },
+        { code: 'MD-PRS-102', name: 'B3-050 型大通径高导热板片上模', lifecycle: '50万次', remainLife: '24.2万次', pmCount: 11, repairCount: 2, checkRecord: '09-14 已检 · 间隙标准', timelyRate: '98.2%' },
+        { code: 'MD-PRS-103', name: 'B3-095 宽通道强抗堵板片冲压模', lifecycle: '50万次', remainLife: '4.6万次', pmCount: 19, repairCount: 3, checkRecord: '09-13 已检 · 建议修磨', timelyRate: '96.5%' },
+        { code: 'MD-BRZ-201', name: 'BRZ-030 钎焊板片定位压紧工装模具', lifecycle: '50万次', remainLife: '42.0万次', pmCount: 4, repairCount: 0, checkRecord: '09-14 已检 · 定位精准', timelyRate: '100.0%' },
+        { code: 'MD-BRZ-202', name: 'BRZ-060 真空高温石墨定位成套模具', lifecycle: '30万次', remainLife: '18.6万次', pmCount: 15, repairCount: 1, checkRecord: '09-14 已检 · 平整度优', timelyRate: '100.0%' },
+        { code: 'MD-PRS-104', name: 'B3-020 小型紧凑换热板冲孔复合模', lifecycle: '30万次', remainLife: '15.8万次', pmCount: 14, repairCount: 2, checkRecord: '09-14 维保中 · 刃口修磨', timelyRate: '97.8%' },
+        { code: 'MD-WLD-301', name: 'WLD-可拆型板片环缝激光焊夹具模', lifecycle: '60万次', remainLife: '55.0万次', pmCount: 3, repairCount: 0, checkRecord: '09-14 已检 · 气密夹紧正常', timelyRate: '100.0%' },
+        { code: 'MD-PRS-105', name: 'B3-150 特重型工业板片成型下模', lifecycle: '60万次', remainLife: '59.2万次', pmCount: 1, repairCount: 0, checkRecord: '09-12 首检 · 试模首件合格', timelyRate: '100.0%' },
+        { code: 'MD-PRS-106', name: 'B3-065 耐高压对称波纹板片冲裁模', lifecycle: '50万次', remainLife: '31.4万次', pmCount: 8, repairCount: 1, checkRecord: '09-14 已检 · 尺寸合格', timelyRate: '98.5%' },
+        { code: 'MD-BRZ-203', name: 'BRZ-095 钎焊多层错位叠装定位工装', lifecycle: '40万次', remainLife: '27.5万次', pmCount: 7, repairCount: 0, checkRecord: '09-13 已检 · 紧固正常', timelyRate: '100.0%' },
+        { code: 'MD-PRS-107', name: 'B3-040 食品级卫生换热板成型上模', lifecycle: '50万次', remainLife: '45.1万次', pmCount: 3, repairCount: 0, checkRecord: '09-14 已检 · 表面无划伤', timelyRate: '100.0%' },
+        { code: 'MD-PRS-108', name: 'B3-040 食品级卫生换热板成型下模', lifecycle: '50万次', remainLife: '44.8万次', pmCount: 3, repairCount: 0, checkRecord: '09-14 已检 · 镜面精度良', timelyRate: '100.0%' },
+        { code: 'MD-HEL-401', name: 'HEL-全自动氦检高压腔体密封模套', lifecycle: '30万次', remainLife: '12.3万次', pmCount: 18, repairCount: 1, checkRecord: '09-14 已检 · 密封圈良好', timelyRate: '100.0%' },
+        { code: 'MD-PRS-109', name: 'B3-120 强腐蚀工况特种钛板成型模', lifecycle: '40万次', remainLife: '36.8万次', pmCount: 2, repairCount: 0, checkRecord: '09-11 首检 · 试模良好', timelyRate: '100.0%' },
+        { code: 'MD-WLD-302', name: 'WLD-板壳式蒸发器端盖环焊卡具模', lifecycle: '50万次', remainLife: '39.0万次', pmCount: 5, repairCount: 1, checkRecord: '09-14 已检 · 同轴度合格', timelyRate: '99.0%' },
+        { code: 'MD-PRS-110', name: 'B3-015 超紧凑机载冷水板冲裁复合模', lifecycle: '30万次', remainLife: '8.4万次', pmCount: 16, repairCount: 2, checkRecord: '09-13 已检 · 间隙微偏', timelyRate: '96.0%' }
+    ];
+
+    function renderMoldTable() {
+        var tbody = document.getElementById('mold-tbody');
+        if (!tbody) return;
+        tbody.innerHTML = MOLD_LIST.map(function (m) {
+            return '<tr class="hover:bg-slate-50/70 transition-colors border-b border-[rgba(26,35,50,0.04)] text-[#1A2332]" style="height: 35px;">' +
+                '<td class="py-1.5 px-3 font-medium text-[#1A2332]">' + m.code + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + m.name + '</td>' +
+                '<td class="py-1.5 px-3 text-right font-normal text-[#1A2332]">' + m.lifecycle + '</td>' +
+                '<td class="py-1.5 px-3 text-right font-normal text-[#1A2332]">' + m.remainLife + '</td>' +
+                '<td class="py-1.5 px-3 text-right font-normal text-[#1A2332]">' + m.pmCount + '次</td>' +
+                '<td class="py-1.5 px-3 text-right font-normal text-[#1A2332]">' + m.repairCount + '次</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + m.checkRecord + '</td>' +
+                '<td class="py-1.5 px-3 text-right font-semibold text-[#5F8E68]">' + m.timelyRate + '</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    // 初始化渲染与响应式监听
+    document.addEventListener('DOMContentLoaded', function() {
+        renderRdCharts();
+        renderMoldTable();
+    });
+    window.addEventListener('load', function() {
+        renderRdCharts();
+        renderMoldTable();
+    });
+    window.addEventListener('resize', function() {
+        if (rdCharts.status) rdCharts.status.resize();
+        if (rdCharts.benefit) rdCharts.benefit.resize();
+    });
+
+    function onPeriodChange() {
+        var p = BDLayout.getPeriod();
+        console.log("R&D Period changed:", p);
+        renderRdCharts();
+    }
+    window.onPeriodChange = onPeriodChange;
+    document.addEventListener("DOMContentLoaded", function() {
+        BDLayout.render({ active: "rd" });
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+@echo off
+cd /d "%~dp0"
+start "BaodeBI Server" /B python -m http.server 8765
+echo Server starting on port 8765...
+timeout /t 3 /nobreak >nul
+echo Checking server...

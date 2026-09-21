@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主数据管理 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+                <!-- ============== 左侧导航栏 (静态预渲染，杜绝切换闪烁) ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <main class="flex-1 overflow-auto">
+                        <!-- 顶部导航条 (静态预渲染) -->
+                        <!-- 顶部导航条 (与企业经营驾驶舱 100% 相同，已取消导出数据按钮) -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5">
+                <div class="flex items-center justify-between">
+                    <!-- 左侧：页面标题 -->
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">主数据管理</span>
+                    </div>
+
+                    <!-- 右侧：年月选择胶囊 (与驾驶舱 100% 保持一致：动态近三年与未来月份拦截) -->
+                    <div class="flex items-center">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <!-- 年份选择触发器 -->
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 年份下拉菜单 (动态渲染近三年) -->
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+
+                                <!-- 月份选择触发器 -->
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 月份下拉菜单 (动态禁用未来月份) -->
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                                        <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                            <span>选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+
+                <!-- 模块 1：主数据质量总览与走势趋势（企业经营驾驶舱同款卡片级封装） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">主数据质量总览</h3>
+                        </div>
+
+                        <!-- 顶部 5 大核心 KPI -->
+                        <div id="kpi-cards" class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2 mb-3"></div>
+
+                        <!-- 质量评分趋势折线图（嵌入在 .chart-card 玻璃子卡片内） -->
+                        <div class="chart-card">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="chart-card-title mb-0">
+                                    <span class="chart-card-title-text">主数据质量评分趋势（近12个月走势）</span>
+                                </div>
+                                <div class="flex items-center gap-2 text-xs">
+                                    <span class="status-tag status-success">达标 ≥95%</span>
+                                    <span class="status-tag status-warning">关注 90~95%</span>
+                                    <span class="status-tag status-danger">预警 &lt;90%</span>
+                                </div>
+                            </div>
+                            <div id="trend-chart" class="chart-box" style="height: 250px; min-height: 250px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 2：数据质量问题诊断与治理待办清单 -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">数据质量诊断与治理待办</h3>
+                        </div>
+
+                        <!-- 第一行：问题字段分布与重点问题明细 -->
+                        <div class="grid grid-cols-12 gap-3.5 mb-3">
+                            <div class="col-span-12 lg:col-span-5 chart-card">
+                                <div class="chart-card-title mb-1">
+                                    <span class="chart-card-title-text">问题字段分布</span>
+                                </div>
+                                <div id="field-chart" class="chart-box" style="height: 200px; min-height: 200px;"></div>
+                            </div>
+
+                            <div class="col-span-12 lg:col-span-7 chart-card">
+                                <div class="chart-card-title mb-1">
+                                    <span class="chart-card-title-text">重点问题明细清单</span>
+                                </div>
+                                <div class="overflow-x-auto flex-1">
+                                    <table class="w-full text-xs">
+                                        <thead>
+                                            <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                                <th class="w-24 text-left px-2">主数据域</th>
+                                                <th class="text-left px-2">问题描述</th>
+                                                <th class="w-16 text-right px-2">问题数</th>
+                                                <th class="w-32 text-center px-2">责任人</th>
+                                                <th class="w-16 text-center px-2">状态</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="issue-tbody" class="divide-y divide-[rgba(26,35,50,0.06)] text-[11.5px]"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 第二行：治理待办行动清单 -->
+                        <div class="chart-card">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="chart-card-title mb-0">
+                                    <span class="chart-card-title-text">治理待办 · 专项行动清单</span>
+                                </div>
+                                <span class="text-[11px] text-[#5F8E68] font-bold">4 项重点治理在轨</span>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5" id="todo-list"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    /* ============================================================
+       模拟数据层（后端接入点：将 buildMock 替换为 fetch('/api/mdm?period=') 即可）
+       ============================================================ */
+    // 近12个月（2025-08 ~ 2026-07），末位为当前展示月（7月）
+    var MONTHS = ['10月', '11月', '12月', '1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月'];
+
+    // 五类主数据指标元数据（指标ID / 名称 / 卡片图标配色）
+    var SERIES_META = [
+        { key: 'cust', id: 'MDM-001', shortName: '客户完整性', name: '客户主数据完整性', owner: '内勤主管（蒋丽伟）', color: '#2E6EB5', bg: 'rgba(46,110,181,0.08)' },
+        { key: 'supp', id: 'MDM-002', shortName: '供应商完整性', name: '供应商主数据完整性', owner: '采购经理（万荣云）', color: '#6B8EA8', bg: 'rgba(107,142,168,0.08)' },
+        { key: 'matr', id: 'MDM-003', shortName: '物料一致性', name: '物料主数据一致性', owner: '研发总监（张冬林）', color: '#5F8E68', bg: 'rgba(95,142,104,0.08)' },
+        { key: 'org', id: 'MDM-004', shortName: '组织准确性', name: '组织架构主数据准确性', owner: '人事经理（刘媛洁）', color: '#8FAFC9', bg: 'rgba(143,175,201,0.08)' },
+        { key: 'emp', id: 'MDM-005', shortName: '人员时效性', name: '人员主数据时效性', owner: '人事经理（刘媛洁）', color: '#7A899C', bg: 'rgba(122,137,156,0.08)' }
+    ];
+
+    function buildMock() {
+        return {
+            months: MONTHS,
+            // 近12个月质量评分序列（%），随治理推进逐月改善，7月与KPI基准一致
+            scores: {
+                cust: [93.4, 93.8, 94.0, 94.3, 94.6, 94.5, 94.9, 95.1, 95.4, 95.7, 95.9, 96.2], // 客户完整性
+                supp: [90.6, 90.9, 91.2, 91.0, 91.5, 91.8, 92.1, 92.4, 92.6, 92.9, 93.2, 93.8], // 供应商完整性
+                matr: [88.2, 88.6, 89.0, 88.8, 89.3, 89.7, 90.1, 90.4, 90.2, 90.8, 91.1, 91.5], // 物料一致性（前期低于90预警）
+                org:  [96.4, 96.8, 96.6, 97.0, 97.2, 96.9, 97.3, 97.5, 97.7, 97.8, 98.0, 98.1], // 组织准确性
+                emp:  [92.1, 92.5, 92.8, 93.0, 92.7, 93.2, 93.6, 93.9, 94.2, 94.6, 94.9, 95.4]  // 人员时效性
+            },
+            // 问题字段分布（按主数据域，base为7月基准值，count随月份联动）
+            fields: [
+                { domain: '物料主数据', base: 12, count: 12, color: '#E87722' },
+                { domain: '客户主数据', base: 8, count: 8, color: '#0068FF' },
+                { domain: '人员主数据', base: 6, count: 6, color: '#5ED4AD' },
+                { domain: '供应商主数据', base: 5, count: 5, color: '#11387F' },
+                { domain: '组织主数据', base: 3, count: 3, color: '#2FA984' }
+            ],
+            // 重点问题明细（与问题字段分布同域对应）
+            issues: [
+                { domain: '物料主数据', desc: '新建物料时属性选择错误，个别导致分类错误，品号群组归属异常', metric: 'MDM-003', qty: 12, owner: '研发总监（张冬林）', status: '整改中', cls: 'status-warning' },
+                { domain: '客户主数据', desc: '税号、开票信息等必填字段缺失，客户档案完整度不足', metric: 'MDM-001', qty: 8, owner: '内勤主管（蒋丽伟）', status: '待整改', cls: 'status-info' },
+                { domain: '人员主数据', desc: '岗位异动、入离职信息更新滞后，员工主数据时效性不达标', metric: 'MDM-005', qty: 6, owner: '人事经理（刘媛洁）', status: '整改中', cls: 'status-warning' },
+                { domain: '供应商主数据', desc: '银行账户、开票资料维护不全，影响采购下单与对账', metric: 'MDM-002', qty: 5, owner: '采购经理（万荣云）', status: '待整改', cls: 'status-info' },
+                { domain: '组织主数据', desc: '部门撤销/调整后组织编码未及时停用，历史层级残留', metric: 'MDM-004', qty: 3, owner: '人事经理（刘媛洁）', status: '已闭环', cls: 'status-success' }
+            ],
+            // 治理待办行动清单（对应Excel备注：物料属性选错、东宝组织人员变动频繁）
+            todos: [
+                { title: '物料属性校验与品号群组清理', priority: '高优先级', cls: 'status-danger', color: '#D64550', bg: 'rgba(214,69,80,0.10)', desc: '物料新建时会选错物料属性，个别导致分类错误；需清理品号群组表存量异常数据，并在新建流程中增加物料属性联动校验规则。', metric: 'MDM-003', owner: '研发总监（张冬林）', due: '2026-08-31' },
+                { title: '东宝组织人员变更同步机制', priority: '高优先级', cls: 'status-danger', color: '#D64550', bg: 'rgba(214,69,80,0.10)', desc: '东宝系统人员和组织结构数据变动频繁；需建立东宝→ERP主数据变更同步机制，并按月组织核对，保障组织准确性与人员时效性。', metric: 'MDM-004 / 005', owner: '人事经理（刘媛洁）', due: '2026-09-30' },
+                { title: '客户必填字段强校验与存量补录', priority: '中优先级', cls: 'status-warning', color: '#E87722', bg: 'rgba(232,119,34,0.10)', desc: '税号、开票信息等必填字段纳入录入强校验；存量缺失档案按销售内勤分工限期补录，补录进度纳入月度质量评分。', metric: 'MDM-001', owner: '内勤主管（蒋丽伟）', due: '2026-08-15' },
+                { title: '供应商档案下单前专项核验', priority: '中优先级', cls: 'status-warning', color: '#E87722', bg: 'rgba(232,119,34,0.10)', desc: '银行账户与开票资料不全的供应商，采购下单前须完成主数据核验与补全，新供应商建档执行资料齐全率100%标准。', metric: 'MDM-002', owner: '采购经理（万荣云）', due: '2026-09-15' }
+            ]
+        };
+    }
+
+    var DATA = buildMock();
+    DATA.curIdx = MONTHS.length - 1;                       // 当前展示月索引（默认7月）
+    DATA.current = {};                                     // 当前月各项评分
+    SERIES_META.forEach(function (m) { DATA.current[m.key] = DATA.scores[m.key][DATA.curIdx]; });
+    var charts = {};
+
+    /* ============================================================
+       渲染逻辑
+       ============================================================ */
+    // 状态判定：>=95% 达标绿 / 90~95% 关注橙 / <90% 预警红
+    function statusOf(score) {
+        if (score >= 95) return { tag: '达标', cls: 'status-success', color: '#5ED4AD' };
+        if (score >= 90) return { tag: '关注', cls: 'status-warning', color: '#E87722' };
+        return { tag: '预警', cls: 'status-danger', color: '#D64550' };
+    }
+
+    /* ---------- 1. 主数据质量总览 KPI 卡 (驾驶舱统一 sales-overview-cell 样式) ---------- */
+    function renderKPIs() {
+        document.getElementById('kpi-cards').innerHTML = SERIES_META.map(function (m) {
+            var score = DATA.current[m.key];
+            return '<div class="sales-overview-cell">' +
+                '<div class="kpi-label">' + m.shortName + '</div>' +
+                '<div class="kpi-value sales-overview-value" style="color:' + m.color + '">' + score.toFixed(1) + '<span class="unit text-xs">%</span></div>' +
+                '<div class="w-full bg-[rgba(26,35,50,0.06)] rounded-full h-1 mt-1.5 overflow-hidden"><div class="h-full rounded-full transition-all" style="width:' + score + '%; background:' + m.color + '"></div></div>' +
+                '</div>';
+        }).join('');
+    }
+
+    /* ---------- 2. 质量评分趋势（近12个月五条折线） ---------- */
+    function renderTrend() {
+        var el = document.getElementById('trend-chart');
+        charts.trend = charts.trend || echarts.init(el);
+        var opt = alfaBaseChartOpt();
+        opt.legend = { top: 0, right: 0, itemWidth: 14, itemHeight: 3, textStyle: { fontSize: 12, color: '#656565' } };
+        opt.grid = { left: 8, right: 24, top: 44, bottom: 8, containLabel: true };
+        opt.xAxis = { type: 'category', boundaryGap: false, data: DATA.months, axisLine: { lineStyle: { color: '#E5E5E5' } }, axisTick: { show: false }, axisLabel: { color: '#656565' } };
+        opt.yAxis = { type: 'value', min: 86, max: 100, axisLabel: { formatter: '{value}%', color: '#ACACAC' }, splitLine: { lineStyle: { color: '#EEEEEC' } } };
+        opt.series = SERIES_META.map(function (m, i) {
+            var s = {
+                name: m.shortName, type: 'line', smooth: true, symbolSize: 5,
+                itemStyle: { color: m.color }, lineStyle: { color: m.color, width: 2.5 },
+                data: DATA.scores[m.key]
+            };
+            // 首条序列挂辅助线：95%达标线 / 90%预警线 / 当前月标线
+            if (i === 0) {
+                s.markLine = {
+                    symbol: 'none', silent: true,
+                    data: [
+                        { yAxis: 95, lineStyle: { color: '#2FA984', type: 'dashed', width: 1 }, label: { formatter: '达标线 95%', color: '#2FA984', fontSize: 10, position: 'insideEndTop' } },
+                        { yAxis: 90, lineStyle: { color: '#D64550', type: 'dashed', width: 1 }, label: { formatter: '预警线 90%', color: '#D64550', fontSize: 10, position: 'insideEndBottom' } },
+                        { xAxis: DATA.months[DATA.curIdx], lineStyle: { color: '#ACACAC', type: 'dashed', width: 1 }, label: { formatter: '当前月', color: '#656565', fontSize: 10 } }
+                    ]
+                };
+            }
+            return s;
+        });
+        charts.trend.setOption(opt, true);
+    }
+
+    /* ---------- 3a. 问题字段分布（横向柱图） ---------- */
+    function renderFields() {
+        var el = document.getElementById('field-chart');
+        charts.field = charts.field || echarts.init(el);
+        var f = DATA.fields;
+        var opt = alfaBaseChartOpt();
+        opt.legend.show = false;
+        opt.grid = { left: 8, right: 44, top: 10, bottom: 0, containLabel: true };
+        opt.xAxis = { type: 'value', splitLine: { show: false }, axisLabel: { show: false } };
+        opt.yAxis = { type: 'category', inverse: true, data: f.map(function (x) { return x.domain; }), axisLine: { show: false }, axisTick: { show: false }, axisLabel: { color: '#656565', fontSize: 12 } };
+        opt.series = [{
+            type: 'bar', barWidth: 18, itemStyle: { borderRadius: [0, 3, 3, 0] },
+            label: { show: true, position: 'right', color: '#0B1128', fontSize: 12, fontWeight: 600, formatter: '{c} 个' },
+            data: f.map(function (x) { return { value: x.count, itemStyle: { color: x.color } }; })
+        }];
+        charts.field.setOption(opt, true);
+    }
+
+    /* ---------- 3b. 重点问题明细表 ---------- */
+    function renderIssues() {
+        document.getElementById('issue-tbody').innerHTML = DATA.issues.map(function (it) {
+            return '<tr>' +
+                '<td class="text-[#0B1128] font-medium">' + it.domain + '</td>' +
+                '<td class="def-text">' + it.desc + '</td>' +
+                '<td class="text-right font-semibold text-[#E87722]">' + it.qty + '</td>' +
+                '<td class="text-[#656565]">' + it.owner + '</td>' +
+                '<td class="text-center"><span class="status-tag ' + it.cls + '">' + it.status + '</span></td></tr>';
+        }).join('');
+    }
+
+    /* ---------- 4. 治理待办行动清单 ---------- */
+    function renderTodos() {
+        document.getElementById('todo-list').innerHTML = DATA.todos.map(function (t, i) {
+            return '<div class="insight-item bg-[#F8F8F8]">' +
+                '<div class="insight-icon" style="background:' + t.bg + '; color:' + t.color + '; font-size:11px; font-weight:600;">' + (i + 1) + '</div>' +
+                '<div class="flex-1">' +
+                '<div class="flex items-center justify-between">' +
+                '<div class="text-sm font-medium text-[#0B1128]">' + t.title + ' <span class="status-tag ' + t.cls + ' ml-2">' + t.priority + '</span></div>' +
+                '<div class="text-xs text-[#ACACAC]">期限：' + t.due + '</div></div>' +
+                '<div class="text-xs text-[#656565] mt-1.5 leading-relaxed">' + t.desc + '</div>' +
+                '<div class="flex items-center gap-3 mt-2">' +
+                '<span class="text-xs text-[#ACACAC]">责任人：' + t.owner + '</span></div></div></div>';
+        }).join('');
+    }
+
+    /* ---------- 月份联动 ---------- */
+    function onPeriodChange() {
+        var p = BDLayout.getPeriod();
+        var m = parseInt(p.month) || 9;
+        // 近12个月序列（2025-08 ~ 2026-07）映射到所选月份索引
+        var idx = m >= 8 ? m - 8 : m + 4;
+        DATA.curIdx = idx;
+        // 当前月评分取趋势序列对应值（模拟不同月份数据波动）
+        SERIES_META.forEach(function (mt) { DATA.current[mt.key] = DATA.scores[mt.key][idx]; });
+        // 问题数量随月份联动：治理推进后逐月收敛（每早一个月 +2% 历史遗留）
+        var conv = 1 + (idx - (MONTHS.length - 1)) * 0.02;
+        DATA.fields.forEach(function (f) { f.count = Math.max(1, Math.round(f.base * conv)); });
+        DATA.issues.forEach(function (it, i) { it.qty = DATA.fields[i].count; });
+        renderKPIs(); renderTrend(); renderFields(); renderIssues();
+    }
+    window.onPeriodChange = onPeriodChange;
+
+    /* ---------- 初始化 ---------- */
+    BDLayout.render({ active: "mdm" });
+    renderKPIs(); renderTrend(); renderFields(); renderIssues(); renderTodos();
+    window.addEventListener('resize', function () { Object.values(charts).forEach(function (c) { c.resize(); }); });
+    </script>
+</body>
+</html>

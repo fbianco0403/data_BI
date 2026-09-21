@@ -1,0 +1,604 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>财务指标 - 目标填报中心 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        .custom-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f8fafc; }
+    </style>
+</head>
+<body class="min-h-screen bg-[#F0F2F5]">
+    <div class="flex min-h-screen">
+
+        <!-- ============== 左侧导航栏 ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <!-- ============== 主内容区 ============== -->
+        <main class="flex-1 overflow-auto">
+            <!-- 顶栏 -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5 bg-white/95 backdrop-blur border-b border-[rgba(26,35,50,0.08)] shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2.5">
+                        <span class="font-bold text-sm text-[#1A2332]">目标填报中心 · 财务指标工作台</span>
+                    </div>
+                    <div class="flex items-center gap-3">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/></svg>
+                                    </button>
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                                        <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                            <span>选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+
+
+                <!-- 模块 2：财务指标明细工作台矩阵 (支持按月按模板导入 + 终审流) -->
+                <div class="card p-3.5 bg-white rounded-xl border border-[rgba(26,35,50,0.08)] shadow-sm">
+                    <!-- 顶栏操作区：模板、导出与导入按钮 -->
+                    <div class="flex items-center justify-between mb-3 pb-2.5 border-b border-[rgba(26,35,50,0.06)] flex-wrap gap-2">
+                        <div class="flex items-center gap-2">
+                            <div class="w-1 h-3.5 bg-gradient-to-b from-[#0057B8] to-[#5F8E68] rounded-full"></div>
+                            <span class="text-xs font-bold text-[#1A2332]">财务经营指标明细清单</span>
+                        </div>
+
+                        <!-- 右侧操作工具栏 -->
+                        <div class="flex items-center gap-2 flex-wrap">
+
+                            <!-- 重置筛选按钮 -->
+                            <button id="resetFiltersBtn" type="button" onclick="resetAllColumnFilters()" class="hidden px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-semibold text-rose-600 transition-all flex items-center gap-1 shadow-sm cursor-pointer" title="清除所有已设置的列筛选">
+                                <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                <span>重置筛选</span>
+                            </button>
+
+                            <!-- 下载空白模板 -->
+                            <button type="button" onclick="BaodeFinanceStore.downloadTemplate()" class="px-2.5 py-1.5 rounded-lg border border-[rgba(0,87,184,0.25)] bg-white hover:bg-[#0057B8]/5 text-xs font-semibold text-[#0057B8] transition-all flex items-center gap-1.5 cursor-pointer shadow-xs" title="下载标准导入Excel模板（含经营指标、月份、计划、实际、差异率、差异金额）">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                                下载空白模板
+                            </button>
+
+                            <!-- 导出当前指标 (Excel) -->
+                            <button type="button" onclick="exportCurrentTableData()" class="px-2.5 py-1.5 rounded-lg border border-[rgba(0,87,184,0.3)] bg-[#0057B8]/10 hover:bg-[#0057B8]/15 text-xs font-bold text-[#0057B8] transition-all flex items-center gap-1.5 cursor-pointer shadow-xs" title="导出当前系统已有财务指标数据">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                导出当前指标 (Excel)
+                            </button>
+
+                            <!-- 导入财务指标 -->
+                            <input type="file" id="financeExcelInput" accept=".xlsx,.xls" class="hidden" onchange="handleFinanceExcelUpload(event)">
+                            <button type="button" onclick="document.getElementById('financeExcelInput').click()" class="px-3 py-1.5 rounded-lg bg-[#0057B8] hover:bg-[#004494] text-white text-xs font-bold shadow transition-all flex items-center gap-1.5 cursor-pointer">
+                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l4-4m0 0l4 4m-4-4v12"/></svg>
+                                导入财务指标
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 核心表格容器 -->
+                    <div class="overflow-x-auto overflow-y-auto max-h-[580px] rounded-lg border border-slate-200 custom-scroll relative">
+                        <table class="text-xs text-left border-collapse w-full" style="min-width: 1180px;" id="financeTable">
+                            <thead class="sticky top-0 z-30 bg-[#F4F7FA]">
+                                <tr class="bg-[#F4F7FA] text-[#6B7A94] text-[11px] font-bold border-b border-slate-200 whitespace-nowrap" style="height: 36px;">
+                                    <th class="px-3 text-center border-r border-slate-200/60" style="width: 50px;">序号</th>
+                                    <th class="px-2.5 border-r border-slate-200/60" style="width: 95px;">
+                                        <div class="flex items-center justify-between gap-1">
+                                            <span>指标类别</span>
+                                            <button type="button" onclick="openExcelFilter(event, 'category', '指标类别')" id="filterBtn_category" class="p-0.5 rounded hover:bg-slate-200/70 text-slate-400 hover:text-[#0057B8] transition cursor-pointer" title="筛选指标类别">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="px-3 border-r border-slate-200/60" style="width: 230px;">
+                                        <div class="flex items-center justify-between gap-1">
+                                            <span>经营指标</span>
+                                            <button type="button" onclick="openExcelFilter(event, 'indicator', '经营指标')" id="filterBtn_indicator" class="p-0.5 rounded hover:bg-slate-200/70 text-slate-400 hover:text-[#0057B8] transition cursor-pointer" title="筛选经营指标">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="px-2 text-center border-r border-slate-200/60" style="width: 70px;">
+                                        <div class="flex items-center justify-between gap-1">
+                                            <span>月份</span>
+                                            <button type="button" onclick="openExcelFilter(event, 'month', '月份')" id="filterBtn_month" class="p-0.5 rounded hover:bg-slate-200/70 text-slate-400 hover:text-[#0057B8] transition cursor-pointer" title="筛选月份">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="px-3 text-right border-r border-slate-200/60" style="width: 100px;">计划</th>
+                                    <th class="px-3 text-right border-r border-slate-200/60" style="width: 100px;">实际</th>
+                                    <th class="px-3 text-right border-r border-slate-200/60" style="width: 95px;">差异率</th>
+                                    <th class="px-3 text-right border-r border-slate-200/60" style="width: 105px;">差异金额</th>
+                                    <th class="px-3 text-left">差异分析/备注</th>
+                                </tr>
+                            </thead>
+                            <tbody id="financeTableBody" class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-xs"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- 分页条 -->
+                    <div id="paginationBar" class="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-[#6B7A94]"></div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+
+
+    <!-- ==================== 模态弹窗 2：财务历史版本追溯 ==================== -->
+    <div id="versionHistoryModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm hidden">
+        <div class="bg-white rounded-2xl shadow-2xl border border-[rgba(26,35,50,0.15)] w-full max-w-3xl overflow-hidden p-6 space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-[rgba(26,35,50,0.08)]">
+                <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-lg bg-[#0057B8]/15 text-[#0057B8] flex items-center justify-center font-bold text-base">
+                        🕒
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-base text-[#1A2332]">财务经营指标历史版本快照</h4>
+                        <div class="text-[11px] text-[#6B7A94]">记录所有按模板导入并经管会终审确认的大版本快照</div>
+                    </div>
+                </div>
+                <button type="button" onclick="closeVersionHistoryModal()" class="text-[#6B7A94] hover:text-[#1A2332] text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+
+            <div class="max-h-[420px] overflow-y-auto custom-scroll divide-y divide-slate-100" id="versionHistoryList"></div>
+
+            <div class="flex items-center justify-end pt-3 border-t border-slate-100">
+                <button type="button" onclick="closeVersionHistoryModal()" class="px-4 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-[#6B7A94] hover:bg-slate-50 transition cursor-pointer">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ==================== Excel 风格列头独立筛选浮层 ==================== -->
+    <div id="excelFilterDropdown" class="hidden fixed z-50 bg-white rounded-xl shadow-2xl border border-[rgba(26,35,50,0.15)] w-60 p-3 text-xs">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-100 mb-2">
+            <span class="font-bold text-[#1A2332]" id="excelFilterColTitle">列筛选</span>
+            <button type="button" onclick="closeExcelFilter()" class="text-slate-400 hover:text-slate-600 text-sm font-bold cursor-pointer">&times;</button>
+        </div>
+        <div class="space-y-2">
+            <input type="text" id="excelFilterSearchInput" oninput="filterDropdownList()" placeholder="搜索筛选项..." class="w-full text-xs px-2.5 py-1 rounded-lg border border-slate-200 focus:border-[#0057B8] focus:outline-none">
+            <div class="flex items-center justify-between text-[11px] text-[#0057B8] pt-0.5">
+                <button type="button" onclick="setAllDropdownItems(true)" class="hover:underline cursor-pointer">全选</button>
+                <button type="button" onclick="setAllDropdownItems(false)" class="hover:underline cursor-pointer">全清</button>
+            </div>
+            <div id="excelFilterItemsList" class="max-h-48 overflow-y-auto custom-scroll space-y-1 py-1"></div>
+            <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button type="button" onclick="closeExcelFilter()" class="px-2.5 py-1 rounded-md text-slate-500 hover:bg-slate-100 transition cursor-pointer">取消</button>
+                <button type="button" onclick="applyExcelFilter()" class="px-3 py-1 rounded-md bg-[#0057B8] text-white font-bold transition cursor-pointer">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 简易 Toast 通知 -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 z-50 bg-[#1A2332] text-white text-xs px-4 py-2.5 rounded-xl shadow-2xl transform translate-y-10 opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2">
+        <span class="text-base" id="toastIcon">🟢</span>
+        <span id="toastMsg">操作成功</span>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script src="assets/js/finance-target-store.js"></script>
+    <script>
+    /* ==================== 状态管理与初始化 ==================== */
+    var currentMonth = 9;
+    var searchKeyword = '';
+    var columnFilters = {}; // { colKey: [selectedValues] }
+    var currentPage = 1;
+    var pageSize = 15;
+    var pendingFinanceData = null;
+
+    // 当前打开的筛选浮层状态
+    var activeFilterCol = null;
+    var activeFilterAllValues = [];
+    var activeFilterSelectedMap = {};
+
+    window.addEventListener('DOMContentLoaded', function () {
+        BDLayout.render({ active: 'finance-entry' });
+        renderWorkspace();
+
+        document.addEventListener('click', function (e) {
+            var drop = document.getElementById('excelFilterDropdown');
+            if (drop && !drop.classList.contains('hidden') && !drop.contains(e.target)) {
+                closeExcelFilter();
+            }
+        });
+    });
+
+    /* ==================== 顶栏月份与版本联动 ==================== */
+    window.onPeriodChange = function () {
+        var p = BDLayout.getPeriod();
+        currentMonth = parseInt(p.month) || 9;
+        currentPage = 1;
+        renderWorkspace();
+    };
+
+    /* ==================== 工作台全量渲染 ==================== */
+    function renderWorkspace() {
+        // 表格数据过滤与渲染
+        var allRows = BaodeFinanceStore.getAllRows();
+
+        var filtered = allRows.filter(function (r) {
+            // 搜索关键字
+            if (searchKeyword) {
+                var matchInd = r.indicator.toLowerCase().indexOf(searchKeyword.toLowerCase()) !== -1;
+                var matchRem = (r.remark || '').toLowerCase().indexOf(searchKeyword.toLowerCase()) !== -1;
+                if (!matchInd && !matchRem) return false;
+            }
+
+            // 列筛选器过滤
+            for (var col in columnFilters) {
+                var selectedVals = columnFilters[col];
+                if (selectedVals && Array.isArray(selectedVals)) {
+                    var cellVal = r[col];
+                    if (selectedVals.indexOf(cellVal) === -1) return false;
+                }
+            }
+
+            return true;
+        });
+
+        // 默认若未单独按列筛选月份，则优先按当前顶栏月份过滤以呈现当月聚焦
+        if (!columnFilters.month && !searchKeyword) {
+            filtered = filtered.filter(function (r) { return r.month === (currentMonth + '月'); });
+        }
+
+        renderTable(filtered);
+        updateFilterBtnBadges();
+    }
+
+    function formatNum(val) {
+        if (val === undefined || val === null || isNaN(val)) return '0.0';
+        return Number(val).toLocaleString('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    }
+
+    /* ==================== 表格渲染与分页 ==================== */
+    function renderTable(rows) {
+        var tbody = document.getElementById('financeTableBody');
+        var pagEl = document.getElementById('paginationBar');
+        if (!tbody) return;
+
+        var total = rows.length;
+        var maxPages = Math.ceil(total / pageSize) || 1;
+        if (currentPage > maxPages) currentPage = maxPages;
+
+        var start = (currentPage - 1) * pageSize;
+        var end = Math.min(start + pageSize, total);
+        var pageRows = rows.slice(start, end);
+
+        if (pageRows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="9" class="text-center py-10 text-slate-400 text-xs font-medium">未找到符合条件的财务指标数据</td></tr>';
+            pagEl.innerHTML = '';
+            return;
+        }
+
+        var html = '';
+        pageRows.forEach(function (r, idx) {
+            var seq = start + idx + 1;
+
+            // 差异金额与空白处理 (不添加特殊字体颜色，统一常规字体颜色；不加+-符号，空白展示空白)
+            var hasDiffAmt = (r.diffAmount !== null && r.diffAmount !== undefined && String(r.diffAmount).trim() !== '' && !isNaN(Number(r.diffAmount)));
+            var diffAmtText = hasDiffAmt ? formatNum(Math.abs(Number(r.diffAmount))) : '';
+
+            // 差异率与空白处理 (不添加特殊字体颜色，统一常规字体颜色；不加+-符号，空白展示空白)
+            var hasDiffRate = (r.diffRate !== null && r.diffRate !== undefined && String(r.diffRate).trim() !== '' && String(r.diffRate).trim() !== '-');
+            var diffRateText = '';
+            if (hasDiffRate) {
+                var rawRateStr = String(r.diffRate).trim();
+                var rateNum = parseFloat(rawRateStr.replace('%', ''));
+                if (!isNaN(rateNum)) {
+                    diffRateText = Math.abs(rateNum).toFixed(2) + '%';
+                } else {
+                    diffRateText = rawRateStr.replace(/^[+-]/, '');
+                }
+            }
+
+            html += '<tr class="hover:bg-slate-50/80 transition-colors">' +
+                '<td class="px-3 py-2 text-center text-slate-400 font-mono text-xs">' + seq + '</td>' +
+                '<td class="px-2.5 py-2 text-slate-600 text-xs">' + r.category + '</td>' +
+                '<td class="px-3 py-2 text-[#1A2332] font-medium text-xs">' + r.indicator + '</td>' +
+                '<td class="px-2 py-2 text-center text-slate-600 text-xs font-mono">' + r.month + '</td>' +
+                '<td class="px-3 py-2 text-right font-mono text-[#1A2332] text-xs">' + formatNum(r.plan) + '</td>' +
+                '<td class="px-3 py-2 text-right font-mono text-[#1A2332] text-xs">' + formatNum(r.actual) + '</td>' +
+                '<td class="px-3 py-2 text-right font-mono text-[#1A2332] text-xs">' + diffRateText + '</td>' +
+                '<td class="px-3 py-2 text-right font-mono text-[#1A2332] text-xs">' + diffAmtText + '</td>' +
+                '<td class="px-3 py-2 text-slate-500 text-[11px] truncate max-w-[240px]" title="' + (r.remark || '') + '">' + (r.remark || '-') + '</td>' +
+                '</tr>';
+        });
+
+        tbody.innerHTML = html;
+
+        // 分页组件
+        var pagHtml = '<div class="flex items-center gap-2">' +
+            '<span>共 <b class="text-[#1A2332] font-mono">' + total + '</b> 项经营指标记录</span>' +
+            '<span class="text-slate-300">|</span>' +
+            '<span>第 ' + currentPage + ' / ' + maxPages + ' 页</span>' +
+            '</div>' +
+            '<div class="flex items-center gap-1">';
+
+        if (currentPage > 1) {
+            pagHtml += '<button type="button" onclick="goToPage(' + (currentPage - 1) + ')" class="px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer">上一页</button>';
+        } else {
+            pagHtml += '<button disabled class="px-2.5 py-1 rounded border border-slate-100 text-slate-300 cursor-not-allowed">上一页</button>';
+        }
+
+        for (var p = 1; p <= maxPages; p++) {
+            if (p === 1 || p === maxPages || (p >= currentPage - 2 && p <= currentPage + 2)) {
+                var isCur = (p === currentPage);
+                pagHtml += '<button type="button" onclick="goToPage(' + p + ')" class="w-7 h-7 rounded text-xs font-bold transition cursor-pointer ' +
+                    (isCur ? 'bg-[#0057B8] text-white shadow-xs' : 'hover:bg-slate-100 text-slate-700') + '">' + p + '</button>';
+            } else if (p === currentPage - 3 || p === currentPage + 3) {
+                pagHtml += '<span class="px-1 text-slate-400">...</span>';
+            }
+        }
+
+        if (currentPage < maxPages) {
+            pagHtml += '<button type="button" onclick="goToPage(' + (currentPage + 1) + ')" class="px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-50 text-slate-600 transition cursor-pointer">下一页</button>';
+        } else {
+            pagHtml += '<button disabled class="px-2.5 py-1 rounded border border-slate-100 text-slate-300 cursor-not-allowed">下一页</button>';
+        }
+
+        pagHtml += '</div>';
+        pagEl.innerHTML = pagHtml;
+    }
+
+    function goToPage(p) {
+        currentPage = p;
+        renderWorkspace();
+    }
+
+    function handleSearchChange() {
+        var el = document.getElementById('financeSearchInput');
+        searchKeyword = el ? el.value.trim() : '';
+        currentPage = 1;
+        renderWorkspace();
+    }
+
+    /* ==================== 列头筛选器逻辑 ==================== */
+    function openExcelFilter(event, colKey, colTitle) {
+        event.stopPropagation();
+        activeFilterCol = colKey;
+
+        var drop = document.getElementById('excelFilterDropdown');
+        document.getElementById('excelFilterColTitle').innerText = '筛选: ' + colTitle;
+
+        var allRows = BaodeFinanceStore.getAllRows();
+        var valSet = {};
+        allRows.forEach(function (r) {
+            var v = r[colKey];
+            if (v) valSet[v] = true;
+        });
+        activeFilterAllValues = Object.keys(valSet).sort();
+
+        var existing = columnFilters[colKey];
+        activeFilterSelectedMap = {};
+        activeFilterAllValues.forEach(function (v) {
+            activeFilterSelectedMap[v] = existing ? (existing.indexOf(v) !== -1) : true;
+        });
+
+        renderDropdownItems(activeFilterAllValues);
+
+        // 浮层定位
+        var rect = event.currentTarget.getBoundingClientRect();
+        drop.style.top = (rect.bottom + 6) + 'px';
+        drop.style.left = Math.min(rect.left, window.innerWidth - 260) + 'px';
+        drop.classList.remove('hidden');
+
+        document.getElementById('excelFilterSearchInput').value = '';
+        document.getElementById('excelFilterSearchInput').focus();
+    }
+
+    function renderDropdownItems(items) {
+        var list = document.getElementById('excelFilterItemsList');
+        if (!list) return;
+        var html = '';
+        items.forEach(function (v) {
+            var checked = activeFilterSelectedMap[v] ? 'checked' : '';
+            html += '<label class="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-slate-50 cursor-pointer text-xs text-slate-700">' +
+                '<input type="checkbox" onchange="toggleDropdownItem(\'' + v + '\', this.checked)" class="rounded text-[#0057B8] focus:ring-0" ' + checked + '>' +
+                '<span class="truncate">' + v + '</span>' +
+                '</label>';
+        });
+        list.innerHTML = html;
+    }
+
+    function toggleDropdownItem(val, isChecked) {
+        activeFilterSelectedMap[val] = isChecked;
+    }
+
+    function setAllDropdownItems(checked) {
+        activeFilterAllValues.forEach(function (v) {
+            activeFilterSelectedMap[v] = checked;
+        });
+        renderDropdownItems(activeFilterAllValues);
+    }
+
+    function filterDropdownList() {
+        var kw = document.getElementById('excelFilterSearchInput').value.trim().toLowerCase();
+        var matched = activeFilterAllValues.filter(function (v) {
+            return v.toLowerCase().indexOf(kw) !== -1;
+        });
+        renderDropdownItems(matched);
+    }
+
+    function applyExcelFilter() {
+        if (!activeFilterCol) return;
+        var selected = [];
+        activeFilterAllValues.forEach(function (v) {
+            if (activeFilterSelectedMap[v]) selected.push(v);
+        });
+
+        if (selected.length === activeFilterAllValues.length) {
+            delete columnFilters[activeFilterCol];
+        } else {
+            columnFilters[activeFilterCol] = selected;
+        }
+
+        closeExcelFilter();
+        currentPage = 1;
+        renderWorkspace();
+    }
+
+    function closeExcelFilter() {
+        var drop = document.getElementById('excelFilterDropdown');
+        if (drop) drop.classList.add('hidden');
+        activeFilterCol = null;
+    }
+
+    function resetAllColumnFilters() {
+        columnFilters = {};
+        searchKeyword = '';
+        var searchInput = document.getElementById('financeSearchInput');
+        if (searchInput) searchInput.value = '';
+        currentPage = 1;
+        renderWorkspace();
+    }
+
+    function updateFilterBtnBadges() {
+        var hasFilter = Object.keys(columnFilters).length > 0 || searchKeyword !== '';
+        var resetBtn = document.getElementById('resetFiltersBtn');
+        if (resetBtn) {
+            if (hasFilter) resetBtn.classList.remove('hidden');
+            else resetBtn.classList.add('hidden');
+        }
+
+        ['indicator', 'category', 'month'].forEach(function (col) {
+            var btn = document.getElementById('filterBtn_' + col);
+            if (!btn) return;
+            if (columnFilters[col]) {
+                btn.classList.add('text-[#0057B8]', 'bg-blue-100');
+                btn.classList.remove('text-slate-400');
+            } else {
+                btn.classList.remove('text-[#0057B8]', 'bg-blue-100');
+                btn.classList.add('text-slate-400');
+            }
+        });
+    }
+
+    /* ==================== 导入与终审确认流 (严格与年度目标一致) ==================== */
+    function handleFinanceExcelUpload(e) {
+        var file = e.target.files[0];
+        if (!file) return;
+
+        var reader = new FileReader();
+        reader.onload = function (evt) {
+            try {
+                var data = new Uint8Array(evt.target.result);
+                var workbook = XLSX.read(data, { type: 'array' });
+                var sheetName = workbook.Sheets['财务指标填报'] ? '财务指标填报' : workbook.SheetNames[0];
+                var sheet = workbook.Sheets[sheetName];
+                var jsonRows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+                var parsedRows = BaodeFinanceStore.parseFinanceExcel(jsonRows);
+
+                if (parsedRows.length === 0) {
+                    alert('未检测到有效的财务指标行（需包含：经营指标、计划、实际），请核对文件内容！');
+                    return;
+                }
+
+                // 直接保存生效，免去烦琐审批弹窗
+                var newVer = BaodeFinanceStore.publishFinanceVersion({
+                    auditor: '财务部导入',
+                    remark: '月度财务经营指标导入更新',
+                    rows: parsedRows
+                });
+
+                renderWorkspace();
+                showToast('已成功导入 ' + parsedRows.length + ' 条财务指标，数据已即时更新！');
+
+            } catch (err) {
+                console.error('Parse Finance Excel error:', err);
+                alert('Excel 文件解析异常：' + err.message);
+            }
+            e.target.value = '';
+        };
+        reader.readAsArrayBuffer(file);
+    }
+
+    /* ==================== 历史版本弹窗 ==================== */
+    function openVersionHistoryModal() {
+        var listEl = document.getElementById('versionHistoryList');
+        if (!listEl) return;
+
+        var history = BaodeFinanceStore.getVersionHistory();
+        if (history.length === 0) {
+            listEl.innerHTML = '<div class="py-8 text-center text-slate-400 text-xs">暂无历史发布版本</div>';
+        } else {
+            var html = '';
+            history.forEach(function (h, idx) {
+                html += '<div class="py-3 px-2 flex items-start justify-between gap-3">' +
+                    '<div class="space-y-1">' +
+                        '<div class="flex items-center gap-2">' +
+                            '<span class="font-extrabold text-sm font-mono text-[#0057B8]">' + h.versionNo + '</span>' +
+                            '<span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#0057B8]/10 text-[#0057B8] border border-[#0057B8]/20">' + h.status + '</span>' +
+                            (idx === 0 ? '<span class="text-[10px] bg-emerald-100 text-emerald-800 font-bold px-1.5 py-0.2 rounded">当前生效</span>' : '') +
+                        '</div>' +
+                        '<div class="text-xs font-semibold text-slate-700">' + h.versionName + '</div>' +
+                        '<div class="text-[11px] text-slate-500 flex items-center gap-2">' +
+                            '<span>审批人: ' + h.auditor + '</span>' +
+                            '<span>•</span>' +
+                            '<span>发布时间: ' + h.auditTime + '</span>' +
+                        '</div>' +
+                        '<div class="text-[11px] text-slate-400 bg-slate-50 p-1.5 rounded mt-1">' + h.remark + '</div>' +
+                    '</div>' +
+                    '<div class="text-right text-xs font-mono flex-shrink-0">' +
+                        '<div class="text-slate-500">营收实际: <b class="text-[#0057B8]">' + formatNum(h.totalRevActual) + '万</b></div>' +
+                        '<div class="text-slate-500">净利实际: <b class="text-[#2FA984]">' + formatNum(h.totalProfitActual) + '万</b></div>' +
+                    '</div>' +
+                    '</div>';
+            });
+            listEl.innerHTML = html;
+        }
+
+        document.getElementById('versionHistoryModal').classList.remove('hidden');
+    }
+
+    function closeVersionHistoryModal() {
+        document.getElementById('versionHistoryModal').classList.add('hidden');
+    }
+
+    /* ==================== 导出与 Toast ==================== */
+    function exportCurrentTableData() {
+        BaodeFinanceStore.exportCurrentFinanceExcel(currentMonth);
+    }
+
+    function showToast(msg, icon) {
+        var el = document.getElementById('toastNotification');
+        if (!el) return;
+        document.getElementById('toastMsg').innerText = msg;
+        document.getElementById('toastIcon').innerText = icon || '🟢';
+        el.classList.remove('translate-y-10', 'opacity-0', 'pointer-events-none');
+        setTimeout(function () {
+            el.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+        }, 3000);
+    }
+    </script>
+</body>
+</html>

@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>计划与库存分析 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+        <aside id="sidebar" class="sidebar"></aside>
+
+        <main class="flex-1 overflow-auto">
+            <header id="page-header"></header>
+
+            <div class="p-8">
+                <!-- 核心KPI卡片区（订单准交 + 库存分析） -->
+                <div id="kpi-cards" class="grid grid-cols-4 gap-4 mb-6"></div>
+
+                <!-- 销售订单准交率分析 -->
+                <div class="card p-7 mb-6">
+                    <div class="flex items-center justify-between mb-6">
+                        <h3 class="section-title font-semibold text-[#0B1128]">销售订单准交率分析</h3>
+                    </div>
+                    <div id="otd-chart" class="chart-container"></div>
+                </div>
+
+                <!-- 库存分析：金额卡片 + 库存周转天数趋势 -->
+                <div class="grid grid-cols-12 gap-6 mb-6">
+                    <div class="col-span-5 card p-7">
+                        <h3 class="section-title font-semibold text-[#0B1128] mb-6">库存分析</h3>
+                        <div class="space-y-4" id="inv-kpis"></div>
+                        <div class="grid grid-cols-2 gap-3 mt-4" id="inv-total"></div>
+                    </div>
+                    <div class="col-span-7 card p-7">
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="section-title font-semibold text-[#0B1128]">库存周转天数趋势</h3>
+                            <div class="flex items-center gap-2">
+                                <span class="status-tag status-info">★新增 · 物料级别周转天数</span>
+                            </div>
+                        </div>
+                        <div id="turnover-chart" class="chart-container"></div>
+                    </div>
+                </div>
+
+                <!-- 成品库龄分析：库龄分布 + 客户库存占比 -->
+                <div class="grid grid-cols-12 gap-6 mb-6">
+                    <div class="col-span-5 card p-7">
+                        <h3 class="section-title font-semibold text-[#0B1128] mb-2">成品库龄分布</h3>
+                        <div id="aging-chart" class="chart-container-sm"></div>
+                        <div class="grid grid-cols-3 gap-3 mt-4" id="aging-kpis"></div>
+                    </div>
+                    <div class="col-span-7 card p-7">
+                        <div class="flex items-center justify-between mb-5">
+                            <h3 class="section-title font-semibold text-[#0B1128]">客户库存占比 TOP6</h3>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="w-14">排名</th>
+                                    <th>客户名称</th>
+                                    <th class="text-right">库存金额 (万)</th>
+                                    <th class="text-right">库存占比</th>
+                                    <th class="text-right">最长库龄</th>
+                                </tr>
+                            </thead>
+                            <tbody id="cust-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 超期库存分析：30/60/90天库存 + 客户排名 -->
+                <div class="grid grid-cols-12 gap-6 mb-6">
+                    <div class="col-span-4 card p-7">
+                        <h3 class="section-title font-semibold text-[#0B1128] mb-6">超期库存分析</h3>
+                        <div class="space-y-4" id="overdue-kpis"></div>
+                    </div>
+                    <div class="col-span-8 card p-7">
+                        <div class="flex items-center justify-between mb-5">
+                            <h3 class="section-title font-semibold text-[#0B1128]">超期库存客户排名 TOP10</h3>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th class="w-14">排名</th>
+                                    <th>客户名称</th>
+                                    <th class="text-right">超期金额 (万)</th>
+                                    <th class="text-right">占超期总额</th>
+                                    <th class="text-right">最长库龄</th>
+                                    <th class="text-center w-24">风险等级</th>
+                                </tr>
+                            </thead>
+                            <tbody id="rank-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- 页脚 -->
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    /* ============================================================
+       模拟数据层（后端接入点：将 buildMock 替换为 fetch('/api/plan?period=') 即可）
+       ============================================================ */
+    var MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+    function buildMock() {
+        // 12个月订单趋势（单）：总订单数约4700/月，准交率95%左右
+        var totalSeed = [4180, 3960, 4520, 4380, 4610, 4720, 4732, 4680, 4510, 4640, 4480, 4820];
+        var rateSeed  = [94.2, 93.8, 94.6, 95.1, 94.9, 95.4, 95.8, 95.2, 94.7, 95.5, 94.4, 95.9];
+        var trend = MONTHS.map(function (m, i) {
+            var total = totalSeed[i];
+            var onTime = Math.round(total * rateSeed[i] / 100);
+            return { month: m, total: total, onTime: onTime, rate: rateSeed[i] };
+        });
+        // 库存周转天数趋势（天）
+        var turnover = MONTHS.map(function (m, i) {
+            return {
+                month: m,
+                overall: [52.3, 51.8, 50.6, 49.2, 48.8, 47.5, 48.5, 47.9, 46.8, 47.2, 46.5, 45.9][i],
+                material: [58.6, 57.9, 56.4, 55.1, 54.2, 53.0, 53.8, 52.7, 51.6, 52.0, 51.2, 50.5][i]
+            };
+        });
+        // 成品库龄分布（万元）
+        var aging = [
+            { name: '0-1月 (≤30天)', value: 1268, id: 'PLN-011' },
+            { name: '1-2月 (31-60天)', value: 284, id: 'PLN-011' },
+            { name: '2-6月 (61-180天)', value: 342, id: 'PLN-011' },
+            { name: '6-12月 (181-360天)', value: 176, id: 'PLN-011' },
+            { name: '大于12月 (>360天)', value: 88, id: 'PLN-011' }
+        ];
+        // 客户库存占比 TOP6（万元）
+        var custShare = [
+            { name: '华成换热设备有限公司', amt: 352, days: '38天' },
+            { name: '江苏恒力化工机械', amt: 286, days: '52天' },
+            { name: '上海艾克流体科技', amt: 245, days: '46天' },
+            { name: '山东蓝箭环保装备', amt: 205, days: '68天' },
+            { name: '浙江中德能源装备', amt: 181, days: '85天' },
+            { name: '广东佛山水处理设备', amt: 151, days: '61天' }
+        ];
+        // 超期库存客户排名 TOP10（万元）
+        var ranks = [
+            { name: '华成换热设备有限公司', amt: 186, days: '142天' },
+            { name: '江苏恒力化工机械', amt: 154, days: '128天' },
+            { name: '上海艾克流体科技', amt: 122, days: '116天' },
+            { name: '山东蓝箭环保装备', amt: 98, days: '105天' },
+            { name: '浙江中德能源装备', amt: 87, days: '96天' },
+            { name: '广东佛山水处理设备', amt: 74, days: '88天' },
+            { name: '安徽海螺节能科技', amt: 61, days: '76天' },
+            { name: '四川长丰动力机械', amt: 53, days: '65天' },
+            { name: '河北鑫达冶金设备', amt: 45, days: '58天' },
+            { name: '湖南湘江食品工程', amt: 38, days: '47天' }
+        ];
+        return {
+            // 当期KPI基准（7月）
+            kpi: { rawInv: 6850, semiInv: 2340, turnoverDays: 48.5, sluggishAmt: 486 },
+            trend: trend, turnover: turnover, aging: aging, custShare: custShare, ranks: ranks,
+            // 30/60/90天库存（万元）与超期总额
+            overdue: { d30: 356, d60: 284, d90: 416, total: 1246 }
+        };
+    }
+
+    var BASE = buildMock();   // 基准数据（12个月趋势与静态排名）
+    var DATA = {};            // 当期展示数据（随月份联动）
+    var charts = {};
+
+    /* ============================================================
+       渲染逻辑
+       ============================================================ */
+    function fmt(n) { return n.toLocaleString('zh-CN'); }
+
+    /* ---------- 按月份生成当期数据（模拟波动，后端接入后替换为接口数据） ---------- */
+    function applyPeriod(mIdx, f) {
+        var t = BASE.trend[(mIdx - 1) % 12];
+        DATA.kpi = {
+            totalOrders: t.total,
+            onTimeOrders: t.onTime,
+            delayedOrders: t.total - t.onTime,
+            otdRate: t.rate,
+            rawInv: Math.round(BASE.kpi.rawInv * f),
+            semiInv: Math.round(BASE.kpi.semiInv * f),
+            turnoverDays: +(BASE.kpi.turnoverDays * (2 - f)).toFixed(1), // 库存高则周转慢
+            sluggishAmt: Math.round(BASE.kpi.sluggishAmt * (1.1 - (mIdx % 4) * 0.04))
+        };
+        DATA.aging = BASE.aging.map(function (a) { return { name: a.name, id: a.id, value: Math.round(a.value * f) }; });
+        DATA.custShare = BASE.custShare.map(function (c) { return { name: c.name, amt: Math.round(c.amt * f), days: c.days }; });
+        DATA.ranks = BASE.ranks.map(function (r) { return { name: r.name, amt: Math.round(r.amt * f), days: r.days }; });
+        DATA.overdue = {
+            d30: Math.round(BASE.overdue.d30 * f),
+            d60: Math.round(BASE.overdue.d60 * f),
+            d90: Math.round(BASE.overdue.d90 * f),
+            total: Math.round(BASE.overdue.total * f)
+        };
+    }
+
+    /* ---------- KPI卡片区（8个：订单准交4 + 库存分析4） ---------- */
+    function renderKPIs() {
+        var k = DATA.kpi;
+        var cards = [
+            { label: '总订单数', id: 'PLN-001', value: fmt(k.totalOrders), unit: '单', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4', color: '#0068FF', bg: 'rgba(0,104,255,0.08)', tag: '正常', tagCls: 'status-success' },
+            { label: '准交订单数', id: 'PLN-002', value: fmt(k.onTimeOrders), unit: '单', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z', color: '#2FA984', bg: 'rgba(94,212,173,0.15)', tag: '正常', tagCls: 'status-success' },
+            { label: '延期订单数', id: 'PLN-003', value: fmt(k.delayedOrders), unit: '单', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', color: '#E87722', bg: 'rgba(232,119,34,0.08)', tag: '关注', tagCls: 'status-warning' },
+            { label: '准交率', id: 'PLN-004', value: k.otdRate.toFixed(1), unit: '%', icon: 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6', color: '#0068FF', bg: 'rgba(0,104,255,0.08)', tag: '达标', tagCls: 'status-success' },
+            { label: '原材料库存', id: 'PLN-005', value: fmt(k.rawInv), unit: '万', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', color: '#11387F', bg: 'rgba(17,56,127,0.08)', tag: '正常', tagCls: 'status-info' },
+            { label: '半成品库存', id: 'PLN-006', value: fmt(k.semiInv), unit: '万', icon: 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10', color: '#11387F', bg: 'rgba(17,56,127,0.08)', tag: '正常', tagCls: 'status-info' },
+            { label: '库存周转天数', id: 'PLN-007', value: k.turnoverDays.toFixed(1), unit: '天', icon: 'M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15', color: '#0068FF', bg: 'rgba(0,104,255,0.08)', tag: '关注', tagCls: 'status-warning' },
+            { label: '原材料呆滞库存金额', id: 'PLN-008', value: fmt(k.sluggishAmt), unit: '万', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', color: '#E87722', bg: 'rgba(232,119,34,0.08)', tag: '风险', tagCls: 'status-danger' }
+        ];
+        document.getElementById('kpi-cards').innerHTML = cards.map(function (c) {
+            return '<div class="card p-5">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                '<div class="icon-circle" style="background:' + c.bg + '"><svg class="w-[18px] h-[18px]" style="color:' + c.color + '" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + c.icon + '"/></svg></div>' +
+                '<span class="status-tag ' + c.tagCls + '">' + c.tag + '</span></div>' +
+                '<div class="text-sm text-[#656565] mb-1.5">' + c.label + '</div>' +
+                '<div class="metric-value">' + c.value + '<span class="text-lg font-semibold">' + c.unit + '</span></div></div>';
+        }).join('');
+    }
+
+    /* ---------- 销售订单准交率分析：柱线组合图（双轴） ---------- */
+    function renderOTD() {
+        var el = document.getElementById('otd-chart');
+        charts.otd = charts.otd || echarts.init(el);
+        var opt = alfaBaseChartOpt();
+        opt.xAxis = { type: 'category', data: BASE.trend.map(function (t) { return t.month; }), axisLine: { lineStyle: { color: '#E5E5E5' } }, axisTick: { show: false }, axisLabel: { color: '#656565' } };
+        opt.yAxis = [
+            { type: 'value', name: '订单数 (单)', nameTextStyle: { color: '#ACACAC' }, splitLine: { lineStyle: { color: '#EEEEEC' } }, axisLabel: { color: '#ACACAC' } },
+            { type: 'value', name: '准交率', nameTextStyle: { color: '#ACACAC' }, min: 85, max: 100, axisLabel: { formatter: '{value}%', color: '#ACACAC' }, splitLine: { show: false } }
+        ];
+        opt.series = [
+            { name: '总订单数', type: 'bar', barWidth: 14, itemStyle: { borderRadius: [3, 3, 0, 0] }, data: BASE.trend.map(function (t) { return t.total; }) },
+            { name: '准交订单数', type: 'bar', barWidth: 14, itemStyle: { borderRadius: [3, 3, 0, 0] }, data: BASE.trend.map(function (t) { return t.onTime; }) },
+            { name: '准交率', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 6, itemStyle: { color: '#E87722' }, lineStyle: { color: '#E87722', width: 2.5 }, data: BASE.trend.map(function (t) { return t.rate; }) }
+        ];
+        charts.otd.setOption(opt, true);
+    }
+    /* ---------- 库存分析：金额卡片 + 呆滞提示 ---------- */
+    function renderInventory() {
+        var k = DATA.kpi;
+        var items = [
+            { id: 'PLN-005', l: '原材料库存', v: fmt(k.rawInv), u: '万', cls: 'text-[#0B1128]' },
+            { id: 'PLN-006', l: '半成品库存', v: fmt(k.semiInv), u: '万', cls: 'text-[#11387F]' },
+            { id: 'PLN-008', l: '原材料呆滞库存金额', v: fmt(k.sluggishAmt), u: '万', cls: 'text-[#E87722]' }
+        ];
+        document.getElementById('inv-kpis').innerHTML = items.map(function (x) {
+            return '<div class="flex items-center justify-between p-3 rounded bg-[#F8F8F8]">' +
+                '<div><div class="text-xs text-[#656565]">' + x.l + '</div></div>' +
+                '<div class="text-xl font-bold ' + x.cls + '">' + x.v + '<span class="text-xs font-medium text-[#ACACAC]">' + x.u + '</span></div></div>';
+        }).join('');
+        document.getElementById('inv-total').innerHTML =
+            '<div class="kpi-box"><div class="text-xs text-[#656565] mb-1">库存合计</div><div class="text-xl font-bold text-[#0B1128]">' + fmt(k.rawInv + k.semiInv) + ' 万</div></div>' +
+            '<div class="kpi-box"><div class="text-xs text-[#656565] mb-1">库存周转天数</div><div class="text-xl font-bold text-[#0068FF]">' + k.turnoverDays.toFixed(1) + ' 天</div></div>';
+    }
+
+    /* ---------- 库存周转天数趋势：整体 + ★新增物料级别双线 ---------- */
+    function renderTurnover() {
+        var el = document.getElementById('turnover-chart');
+        charts.turnover = charts.turnover || echarts.init(el);
+        var opt = alfaBaseChartOpt();
+        opt.xAxis = { type: 'category', data: BASE.turnover.map(function (t) { return t.month; }), axisLine: { lineStyle: { color: '#E5E5E5' } }, axisTick: { show: false }, axisLabel: { color: '#656565' } };
+        opt.yAxis = { type: 'value', name: '周转天数 (天)', nameTextStyle: { color: '#ACACAC' }, splitLine: { lineStyle: { color: '#EEEEEC' } }, axisLabel: { color: '#ACACAC' } };
+        opt.series = [
+            { name: '整体周转天数', type: 'line', smooth: true, symbolSize: 6, lineStyle: { width: 2.5 }, data: BASE.turnover.map(function (t) { return t.overall; }) },
+            { name: '物料级别周转天数 (★新增)', type: 'line', smooth: true, symbolSize: 6, itemStyle: { color: '#E87722' }, lineStyle: { color: '#E87722', width: 2.5, type: 'dashed' }, data: BASE.turnover.map(function (t) { return t.material; }) }
+        ];
+        charts.turnover.setOption(opt, true);
+    }
+
+    /* ---------- 成品库龄分布：环形图 + 库龄KPI ---------- */
+    function renderAging() {
+        var el = document.getElementById('aging-chart');
+        charts.aging = charts.aging || echarts.init(el);
+        var a = DATA.aging;
+        var pieColors = ['#0068FF', '#5ED4AD', '#11387F', '#E87722', '#D64550'];
+        var opt = alfaBaseChartOpt();
+        opt.color = pieColors;
+        opt.tooltip = { backgroundColor: '#0B1128', borderWidth: 0, padding: [8, 12], textStyle: { color: '#fff', fontSize: 12 }, trigger: 'item', formatter: '{b}: {c}万 ({d}%)' };
+        opt.legend = { bottom: 0, left: 'center', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 11, color: '#656565' } };
+        var total = a.reduce(function (s, x) { return s + x.value; }, 0);
+        opt.title = {
+            text: fmt(total) + '万', subtext: '成品库存总额', left: 'center', top: '34%',
+            textStyle: { color: '#0B1128', fontSize: 20, fontWeight: 700 }, subtextStyle: { color: '#ACACAC', fontSize: 11 }
+        };
+        opt.series = [{
+            type: 'pie', radius: ['46%', '68%'], center: ['50%', '44%'],
+            itemStyle: { borderColor: '#fff', borderWidth: 2, borderRadius: 3 },
+            label: { show: true, formatter: '{d}%', color: '#656565', fontSize: 11 },
+            data: a.map(function (x) { return { name: x.name, value: x.value }; })
+        }];
+        charts.aging.setOption(opt, true);
+
+        // 库龄KPI：未逾期（<7天）/ 成品超期库存（7+天）
+        var notOver = Math.round(total * 0.223);
+        var over = total - notOver;
+        document.getElementById('aging-kpis').innerHTML = [
+            { l: '成品库存总额', v: fmt(total) + '万', c: '#0B1128', id: '' },
+            { l: '未逾期库存', v: fmt(notOver) + '万', c: '#2FA984', id: 'PLN-009' },
+            { l: '成品超期库存', v: fmt(over) + '万', c: '#E87722', id: 'PLN-010' }
+        ].map(function (x) {
+            return '<div class="kpi-box"><div class="text-xs text-[#656565] mb-1">' + x.l + '</div><div class="text-lg font-bold" style="color:' + x.c + '">' + x.v + '</div></div>';
+        }).join('');
+    }
+
+    /* ---------- 客户库存占比 TOP6（含占比进度条） ---------- */
+    function renderCustShare() {
+        var rows = DATA.custShare;
+        var total = DATA.aging.reduce(function (s, x) { return s + x.value; }, 0);
+        var maxPct = rows[0].amt / total * 100;
+        document.getElementById('cust-tbody').innerHTML = rows.map(function (r, i) {
+            var pct = r.amt / total * 100;
+            return '<tr>' +
+                '<td><span class="rank-badge ' + (i < 3 ? 'rank-' + (i + 1) : '') + '">' + (i + 1) + '</span></td>' +
+                '<td class="text-[#0B1128] font-medium">' + r.name + '</td>' +
+                '<td class="text-right font-semibold text-[#0B1128]">' + fmt(r.amt) + '</td>' +
+                '<td class="text-right"><div class="flex items-center justify-end gap-2"><div class="progress-bar-bg w-20"><div class="progress-bar-fill" style="width:' + (pct / maxPct * 100).toFixed(0) + '%"></div></div><span class="text-[#656565] w-12 text-right">' + pct.toFixed(1) + '%</span></div></td>' +
+                '<td class="text-right text-[#656565]">' + r.days + '</td></tr>';
+        }).join('');
+    }
+
+    /* ---------- 超期库存分析：30/60/90天库存 ---------- */
+    function renderOverdue() {
+        var o = DATA.overdue;
+        var items = [
+            { id: 'PLN-013', l: '30天库存', v: o.d30, cls: 'text-[#E87722]' },
+            { id: 'PLN-014', l: '60天库存', v: o.d60, cls: 'text-[#0B1128]' },
+            { id: 'PLN-015', l: '90天库存', v: o.d90, cls: 'text-[#D64550]' }
+        ];
+        document.getElementById('overdue-kpis').innerHTML = items.map(function (x) {
+            return '<div class="flex items-center justify-between p-3 rounded bg-[#F8F8F8]">' +
+                '<div><div class="text-xs text-[#656565]">' + x.l + '</div></div>' +
+                '<div class="text-xl font-bold ' + x.cls + '">' + fmt(x.v) + '<span class="text-xs font-medium text-[#ACACAC]">万</span></div></div>';
+        }).join('');
+    }
+
+    /* ---------- 超期库存客户排名 TOP10（含风险标签） ---------- */
+    function renderRanks() {
+        var rows = DATA.ranks;
+        var total = DATA.overdue.total;
+        document.getElementById('rank-tbody').innerHTML = rows.map(function (r, i) {
+            var risk = r.amt > 170 ? ['status-danger', '高风险'] : r.amt > 100 ? ['status-warning', '中风险'] : ['status-info', '关注'];
+            return '<tr>' +
+                '<td><span class="rank-badge ' + (i < 3 ? 'rank-' + (i + 1) : '') + '">' + (i + 1) + '</span></td>' +
+                '<td class="text-[#0B1128] font-medium">' + r.name + '</td>' +
+                '<td class="text-right font-semibold text-[#E87722]">' + fmt(r.amt) + '</td>' +
+                '<td class="text-right text-[#656565]">' + (r.amt / total * 100).toFixed(1) + '%</td>' +
+                '<td class="text-right text-[#656565]">' + r.days + '</td>' +
+                '<td class="text-center"><span class="status-tag ' + risk[0] + '">' + risk[1] + '</span></td></tr>';
+        }).join('');
+    }
+
+    /* ---------- 月份联动（更新KPI、库龄结构与排名） ---------- */
+    function onPeriodChange() {
+        var p = BDLayout.getPeriod();
+        var mIdx = parseInt(p.month) || 7;
+        var factor = 0.92 + (mIdx % 5) * 0.03;   // 模拟不同月份库存波动
+        applyPeriod(mIdx, factor);
+        renderKPIs(); renderInventory(); renderAging(); renderCustShare(); renderOverdue(); renderRanks();
+    }
+    window.onPeriodChange = onPeriodChange;
+
+    /* ---------- 初始化 ---------- */
+    BDLayout.render({ active: 'plan', eyebrow: 'PLAN & INVENTORY ANALYSIS', title: '计划与库存分析', subtitle: '示例集团 · 2026年7月 · 订单准交率 / 库存分析 / 成品库龄 / 超期库存', month: '7月' });
+    applyPeriod(7, 1);
+    renderKPIs(); renderOTD(); renderInventory(); renderTurnover(); renderAging(); renderCustShare(); renderOverdue(); renderRanks();
+    window.addEventListener('resize', function () { Object.values(charts).forEach(function (c) { c.resize(); }); });
+    </script>
+</body>
+</html>

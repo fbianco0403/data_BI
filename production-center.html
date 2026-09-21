@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>生产运营分析 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+                <!-- ============== 左侧导航栏 (静态预渲染，杜绝切换闪烁) ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <main class="flex-1 overflow-auto">
+                        <!-- 顶部导航条 (静态预渲染) -->
+                        <!-- 顶部导航条 (与企业经营驾驶舱 100% 相同，已取消导出数据按钮) -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5">
+                <div class="flex items-center justify-between">
+                    <!-- 左侧：页面标题 -->
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">生产分析中心 · 生产与交付</span>
+                    </div>
+
+                    <!-- 右侧：年月选择胶囊 (与驾驶舱 100% 保持一致：动态近三年与未来月份拦截) -->
+                    <div class="flex items-center">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <!-- 年份选择触发器 -->
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 年份下拉菜单 (动态渲染近三年) -->
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+
+                                <!-- 月份选择触发器 -->
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 月份下拉菜单 (动态禁用未来月份) -->
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                                        <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                            <span>选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+
+                <!-- 模块 1：生产运营与计划达成总览（企业经营驾驶舱同款卡片级封装） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">生产分析总览</h3>
+                        </div>
+
+                        <!-- 顶部 8 大核心 KPI -->
+                        <div id="kpi-cards" class="sales-overview-grid mb-3"></div>
+
+                        <!-- 生产计划达成走势（当月周次 · 钎焊 vs 可拆）与车间卡片 -->
+                        <div class="grid grid-cols-12 gap-3.5">
+                            <div class="col-span-12 lg:col-span-8 chart-card">
+                                <div class="chart-card-title">
+                                    <span class="chart-card-title-text">生产计划达成走势（当月周次 · 钎焊 vs 可拆）</span>
+                                </div>
+                                <div id="compare-chart" class="chart-box" style="height: 250px; min-height: 250px;"></div>
+                            </div>
+                            <div class="col-span-12 lg:col-span-4 flex flex-col gap-2.5" id="workshop-cards"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 2：工单交付走势与周度达成 -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">工单交付走势与周度达成</h3>
+                        </div>
+
+                        <div class="grid grid-cols-12 gap-3.5">
+                            <div class="col-span-12 lg:col-span-8 chart-card">
+                                <div class="chart-card-title">
+                                    <span class="chart-card-title-text">工单准交率 · 延期率月度趋势</span>
+                                </div>
+                                <div id="trend-chart" class="chart-box" style="height: 220px; min-height: 220px;"></div>
+                            </div>
+                            <div class="col-span-12 lg:col-span-4 chart-card">
+                                <div class="chart-card-title">
+                                    <span class="chart-card-title-text">当月周度达成明细</span>
+                                </div>
+                                <div class="overflow-x-auto flex-1">
+                                    <table class="w-full text-xs">
+                                        <thead>
+                                            <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                                <th class="text-left px-1.5">周次</th>
+                                                <th class="text-right px-1.5">钎焊达成</th>
+                                                <th class="text-right px-1.5">钎焊延期</th>
+                                                <th class="text-right px-1.5">可拆达成</th>
+                                                <th class="text-right px-1.5">可拆延期</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="weekly-tbody" class="divide-y divide-[rgba(26,35,50,0.06)] text-[11.5px]"></tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 3：人效分析与用工成本（统一：钎焊一线/非一线、可拆一线/非一线、模具公司人效） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">人效分析与用工成本</h3>
+                        </div>
+
+                        <!-- 宽屏全景人效看板（车间维度 Tab 切换看板） -->
+                        <div class="chart-card mb-3.5">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="chart-card-title mb-0">
+                                    <span class="chart-card-title-text" id="effChartTitle">车间一线与非一线人效结构</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <div class="inline-flex p-0.5 rounded-lg bg-[rgba(26,35,50,0.06)] border border-[rgba(26,35,50,0.08)]">
+                                        <button type="button" id="btnEffBrazing" onclick="switchEffWs('brazing')" class="px-2.5 py-1 rounded-md text-xs font-bold transition-all bg-white text-[#0057B8] shadow-sm">
+                                            钎焊车间
+                                        </button>
+                                        <button type="button" id="btnEffDetach" onclick="switchEffWs('detach')" class="px-2.5 py-1 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]">
+                                            可拆车间
+                                        </button>
+                                        <button type="button" id="btnEffMold" onclick="switchEffWs('mold')" class="px-2.5 py-1 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]">
+                                            模具公司
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="unifiedEffChart" class="chart-box" style="height: 270px; min-height: 270px;"></div>
+                        </div>
+
+                        <!-- 第二看板：人均实物量人效（人均台数与吨位数 · 月度趋势） -->
+                        <div class="chart-card">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="chart-card-title mb-0">
+                                    <span class="chart-card-title-text">人均台数与吨位数月度趋势</span>
+                                </div>
+                                <div class="flex items-center gap-3">
+                                    <!-- 视图分段切换 -->
+                                    <div class="inline-flex p-0.5 rounded-lg bg-[rgba(26,35,50,0.06)] border border-[rgba(26,35,50,0.08)]">
+                                        <button type="button" id="btnPhysUnits" onclick="switchPhysView('units')" class="px-2.5 py-1 rounded-md text-xs font-bold transition-all bg-white text-[#0057B8] shadow-sm">
+                                            人均台数
+                                        </button>
+                                        <button type="button" id="btnPhysWeight" onclick="switchPhysView('weight')" class="px-2.5 py-1 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]">
+                                            人均吨位
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="physOutputEffChart" class="chart-box" style="height: 280px; min-height: 280px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    /* ============================================================
+       模拟数据层（后端接入点：将 MOCK 替换为 fetch('/api/production?period=') 即可）
+       ============================================================ */
+    var MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+    function buildMock() {
+        // 钎焊工单 ~320/月、可拆工单 ~180/月，达成率 90%+（%）
+        var brazingTotal = [302, 288, 315, 308, 321, 329, 326, 318, 312, 320, 309, 331];
+        var brazingRate  = [89.4, 88.6, 90.6, 89.8, 91.2, 92.1, 90.8, 90.2, 89.6, 91.4, 89.9, 92.4];
+        var detachTotal  = [172, 165, 181, 176, 184, 188, 184, 180, 177, 182, 175, 186];
+        var detachRate   = [90.7, 89.4, 91.5, 90.3, 92.0, 92.6, 91.3, 90.8, 90.1, 91.8, 90.4, 92.8];
+        // 12个月趋势（延期率 = 100 - 准交率）
+        var trend = MONTHS.map(function (m, i) {
+            return {
+                month: m,
+                brazingTotal: brazingTotal[i],
+                brazingRate: brazingRate[i],
+                brazingDelay: +(100 - brazingRate[i]).toFixed(1),
+                detachTotal: detachTotal[i],
+                detachRate: detachRate[i],
+                detachDelay: +(100 - detachRate[i]).toFixed(1)
+            };
+        });
+        // 当月周度明细（按每周工单达成率&延期率进行月度展示）
+        var weekly = [
+            { week: '第1周', bRate: 92.3, bDelay: 7.7, dRate: 93.1, dDelay: 6.9 },
+            { week: '第2周', bRate: 89.5, bDelay: 10.5, dRate: 88.9, dDelay: 11.1 },
+            { week: '第3周', bRate: 91.4, bDelay: 8.6, dRate: 92.5, dDelay: 7.5 },
+            { week: '第4周', bRate: 90.2, bDelay: 9.8, dRate: 90.3, dDelay: 9.7 },
+            { week: '第5周', bRate: 90.6, bDelay: 9.4, dRate: 91.7, dDelay: 8.3 }
+        ];
+        // 生产中心 / 非一线人员月度人力成本（万元，百万级）
+        var prodCost     = [372, 368, 378, 375, 381, 386, 386, 388, 380, 379, 374, 385];
+        var nonFrontCost = [92, 90, 95, 94, 95, 97, 96, 97, 95, 96, 93, 97];
+        // 出库销售额（万元）与月底人数（含模具公司，人）——公司人效基础数据
+        var shipAmt   = [16200, 15000, 17400, 16900, 18200, 19000, 17910, 18600, 17800, 18300, 17500, 19100];
+        var headcount = [478, 476, 480, 481, 483, 485, 486, 487, 484, 485, 483, 487];
+        return { trend: trend, weekly: weekly, prodCost: prodCost, nonFrontCost: nonFrontCost, shipAmt: shipAmt, headcount: headcount };
+    }
+
+    var DATA = buildMock();
+    var charts = {};
+
+    /* ---------- 当前月快照（onPeriodChange 月份联动时刷新） ---------- */
+    function syncCurrent(mIdx) {
+        var i = mIdx - 1, t = DATA.trend[i];
+        var bOn = Math.round(t.brazingTotal * t.brazingRate / 100);
+        var dOn = Math.round(t.detachTotal * t.detachRate / 100);
+        DATA.current = {
+            brazingTotal: t.brazingTotal,
+            brazingOntime: bOn,
+            brazingDelayed: t.brazingTotal - bOn,
+            brazingRate: t.brazingRate,
+            brazingDelay: t.brazingDelay,
+            detachTotal: t.detachTotal,
+            detachOntime: dOn,
+            detachDelayed: t.detachTotal - dOn,
+            detachRate: t.detachRate,
+            detachDelay: t.detachDelay,
+            prodCost: DATA.prodCost[i],
+            nonFrontCost: DATA.nonFrontCost[i],
+            shipAmt: DATA.shipAmt[i],
+            headcount: DATA.headcount[i]
+        };
+    }
+
+    /* ============================================================
+       渲染逻辑
+       ============================================================ */
+    function fmt(n) { return n.toLocaleString('zh-CN'); }
+
+    function renderKPIs() {
+        var c = DATA.current;
+        var totalOrders = c.brazingTotal + c.detachTotal;
+        var totalOntime = c.brazingOntime + c.detachOntime;
+        var overallPlanRate = totalOrders > 0 ? (totalOntime / totalOrders * 100).toFixed(1) : '89.8';
+        var cards = [
+            { label: '总工单数量', value: fmt(c.brazingTotal), unit: '单', color: '#0057B8' },
+            { label: '准交工单数', value: fmt(c.brazingOntime), unit: '单', color: '#5F8E68' },
+            { label: '延期工单数', value: fmt(c.brazingDelayed), unit: '单', color: '#E87722' },
+            { label: '总计划达成率', value: overallPlanRate, unit: '%', color: '#0057B8' },
+            { label: '钎焊计划达成率', value: c.brazingRate.toFixed(1), unit: '%', color: '#0057B8' },
+            { label: '可拆计划达成率', value: c.detachRate.toFixed(1), unit: '%', color: '#5F8E68' },
+            { label: '待排产吨位数', value: '128.5', unit: '吨', color: '#0057B8' },
+            { label: '在制品吨位数', value: '86.2', unit: '吨', color: '#E87722' }
+        ];
+        document.getElementById('kpi-cards').innerHTML = cards.map(function (c2) {
+            return '<div class="kpi-cell sales-overview-cell cursor-default">' +
+                '<div class="kpi-label">' + c2.label + '</div>' +
+                '<div class="kpi-value sales-overview-value" style="color:' + c2.color + '">' + c2.value + '<span class="unit text-xs">' + c2.unit + '</span></div>' +
+                '</div>';
+        }).join('');
+    }
+
+    function renderWorkshops() {
+        var c = DATA.current;
+        var ws = [
+            { name: '钎焊车间', ids: 'PRO-001~004', total: c.brazingTotal, ontime: c.brazingOntime, delayed: c.brazingDelayed, rate: c.brazingRate, delay: c.brazingDelay, color: '#0057B8' },
+            { name: '可拆车间', ids: 'PRO-005~007', total: c.detachTotal, ontime: c.detachOntime, delayed: c.detachDelayed, rate: c.detachRate, delay: c.detachDelay, color: '#5F8E68' }
+        ];
+        document.getElementById('workshop-cards').innerHTML = ws.map(function (w) {
+            return '<div class="chart-card flex-1 justify-between">' +
+                '<div class="flex items-center justify-between mb-2">' +
+                '<span class="font-bold text-xs text-[#1A2332]">' + w.name + '</span>' +
+                '<span class="status-tag ' + (w.rate >= 90 ? 'status-success' : 'status-warning') + '">' + (w.rate >= 90 ? '达标' : '关注') + '</span></div>' +
+                '<div class="grid grid-cols-3 gap-2 mb-2">' +
+                '<div><div class="text-[10px] text-[#6B7A94] mb-0.5">总工单</div><div class="text-sm font-bold mono-num text-[#1A2332]">' + w.total + '</div></div>' +
+                '<div><div class="text-[10px] text-[#5F8E68] mb-0.5">准交工单</div><div class="text-sm font-bold mono-num text-[#5F8E68]">' + w.ontime + '</div></div>' +
+                '<div><div class="text-[10px] text-[#E87722] mb-0.5">延期工单</div><div class="text-sm font-bold mono-num text-[#E87722]">' + w.delayed + '</div></div></div>' +
+                '<div class="flex items-center justify-between text-xs mb-1"><span class="text-[#6B7A94]">计划达成率</span><span class="font-bold text-[#0057B8]">' + w.rate + '%</span></div>' +
+                '<div class="progress-bar-bg mb-2"><div class="progress-bar-fill" style="width:' + w.rate + '%;background:' + w.color + '"></div></div>' +
+                '<div class="flex items-center justify-between text-xs mb-1"><span class="text-[#6B7A94]">延期率</span><span class="font-bold text-[#E87722]">' + w.delay + '%</span></div>' +
+                '<div class="progress-bar-bg"><div style="width:' + w.delay + '%;height:100%;background:#E87722;border-radius:3px"></div></div>' +
+                '</div>';
+        }).join('');
+    }
+
+    function getMonthWeeklyData(mIdx) {
+        if (mIdx === 9) {
+            return [
+                { week: 'W1', bRate: 92.3, dRate: 93.1 },
+                { week: 'W2', bRate: 89.5, dRate: 88.9 },
+                { week: 'W3', bRate: 91.4, dRate: 92.5 },
+                { week: 'W4', bRate: 90.2, dRate: 90.3 },
+                { week: 'W5月末', bRate: 90.6, dRate: 91.7 }
+            ];
+        }
+        var t = DATA.trend[mIdx - 1] || DATA.trend[8];
+        var bBase = t.brazingRate;
+        var dBase = t.detachRate;
+        return [
+            { week: 'W1', bRate: +(bBase + 1.2).toFixed(1), dRate: +(dBase + 1.5).toFixed(1) },
+            { week: 'W2', bRate: +(bBase - 1.1).toFixed(1), dRate: +(dBase - 1.2).toFixed(1) },
+            { week: 'W3', bRate: +(bBase + 0.8).toFixed(1), dRate: +(dBase + 0.9).toFixed(1) },
+            { week: 'W4', bRate: +(bBase - 0.4).toFixed(1), dRate: +(dBase - 0.3).toFixed(1) },
+            { week: 'W5月末', bRate: +(bBase + 0.5).toFixed(1), dRate: +(dBase + 0.7).toFixed(1) }
+        ];
+    }
+
+    /* ---------- 生产计划达成走势（当月周次 · 钎焊 vs 可拆，参照销售周次维度设计） ---------- */
+    function renderCompare() {
+        var el = document.getElementById('compare-chart');
+        if (!el) return;
+        charts.compare = charts.compare || echarts.init(el);
+        var p = BDLayout.getPeriod();
+        var mIdx = parseInt(p.month) || 9;
+
+        var bMonth = document.getElementById('badgeWeeklyMonth');
+        if (bMonth) bMonth.innerText = mIdx + '月各周排产';
+
+        var weeks = ['W1', 'W2', 'W3', 'W4', 'W5月末'];
+        var wData = getMonthWeeklyData(mIdx);
+        var bData = wData.map(function (w) { return w.bRate; });
+        var dData = wData.map(function (w) { return w.dRate; });
+
+        // 参考销售目标达成进度当月周次色阶梯度（浅到深阶梯递增）
+        var bColors = ['#C8DCEE', '#9EBFDD', '#75A2CC', '#4C85BB', '#0057B8'];
+        var dColors = ['#D3EADA', '#BCE4C7', '#97C19F', '#7AA883', '#5F8E68'];
+
+        var bSeriesData = bData.map(function (v, idx) {
+            return {
+                value: v,
+                itemStyle: { color: bColors[idx], borderRadius: [4, 4, 0, 0] },
+                label: {
+                    show: true,
+                    position: 'top',
+                    formatter: idx === 4 ? '{val|' + v + '%}\n{sub|(月末)}' : '{c}%',
+                    rich: {
+                        val: { color: '#0057B8', fontWeight: 'bold', fontSize: 11, lineHeight: 14 },
+                        sub: { color: '#0057B8', fontWeight: 'bold', fontSize: 9.5, lineHeight: 12 }
+                    },
+                    color: '#0057B8',
+                    fontSize: 10.5,
+                    fontWeight: 'bold',
+                    distance: 4
+                }
+            };
+        });
+
+        var dSeriesData = dData.map(function (v, idx) {
+            return {
+                value: v,
+                itemStyle: { color: dColors[idx], borderRadius: [4, 4, 0, 0] },
+                label: {
+                    show: true,
+                    position: 'top',
+                    formatter: idx === 4 ? '{val|' + v + '%}\n{sub|(月末)}' : '{c}%',
+                    rich: {
+                        val: { color: '#5F8E68', fontWeight: 'bold', fontSize: 11, lineHeight: 14 },
+                        sub: { color: '#5F8E68', fontWeight: 'bold', fontSize: 9.5, lineHeight: 12 }
+                    },
+                    color: '#5F8E68',
+                    fontSize: 10.5,
+                    fontWeight: 'bold',
+                    distance: 4
+                }
+            };
+        });
+
+        var opt = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                borderColor: 'rgba(255, 255, 255, 0.2)',
+                padding: [8, 12],
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                formatter: function (ps) {
+                    var weekName = ps[0].axisValue;
+                    var res = '<div class="font-bold text-xs mb-1">' + mIdx + '月 · ' + weekName + ' 计划达成走势</div>';
+                    ps.forEach(function (p) {
+                        var status = p.value >= 90 ? '<span style="color:#8DC63F"> (达标)</span>' : '<span style="color:#FFA066"> (关注)</span>';
+                        res += '<div><span style="color:' + p.color + '">● </span>' + p.seriesName + '：<b>' + p.value + '%</b>' + status + '</div>';
+                    });
+                    return res;
+                }
+            },
+            legend: {
+                data: ['钎焊计划达成率', '可拆计划达成率', '目标线 90%'],
+                top: 0,
+                right: 0,
+                itemWidth: 10,
+                itemHeight: 10,
+                textStyle: { fontSize: 11, color: '#6B7A94' }
+            },
+            grid: { left: 42, right: 28, top: 32, bottom: 26 },
+            xAxis: {
+                type: 'category',
+                data: weeks,
+                axisLine: { lineStyle: { color: '#E5E5E5' } },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: function (val) { return val.indexOf('月末') !== -1 ? '#0057B8' : '#1A2332'; },
+                    fontWeight: '700',
+                    fontSize: 11.5
+                }
+            },
+            yAxis: {
+                type: 'value',
+                min: 80,
+                max: 100,
+                splitLine: { lineStyle: { color: '#EEEEEC' } },
+                axisLabel: { formatter: '{value}%', color: '#6B7A94', fontSize: 10.5 }
+            },
+            series: [
+                {
+                    name: '钎焊计划达成率',
+                    type: 'bar',
+                    barWidth: 16,
+                    barGap: '20%',
+                    data: bSeriesData
+                },
+                {
+                    name: '可拆计划达成率',
+                    type: 'bar',
+                    barWidth: 16,
+                    data: dSeriesData,
+                    markLine: {
+                        silent: true,
+                        symbol: 'none',
+                        lineStyle: { color: '#5F8E68', type: 'dashed', width: 1.8 },
+                        label: {
+                            formatter: '目标 90%',
+                            color: '#5F8E68',
+                            position: 'end',
+                            fontWeight: 'bold',
+                            fontSize: 11,
+                            distance: [-50, -10]
+                        },
+                        data: [{ yAxis: 90 }]
+                    }
+                }
+            ]
+        };
+        charts.compare.setOption(opt, true);
+    }
+
+    /* ---------- 准交率&延期率四线趋势（截至当前月份，不展示未来月份） ---------- */
+    function renderTrend(mIdx) {
+        if (!mIdx) {
+            var p = (window.BDLayout && BDLayout.getPeriod) ? BDLayout.getPeriod() : {};
+            mIdx = parseInt(p.month) || 9;
+        }
+        var el = document.getElementById('trend-chart');
+        if (!el) return;
+        charts.trend = charts.trend || echarts.init(el);
+        var opt = alfaBaseChartOpt();
+        var monthsSlice = MONTHS.slice(0, mIdx);
+        var trendSlice = DATA.trend.slice(0, mIdx);
+
+        opt.xAxis = {
+            type: 'category',
+            data: monthsSlice,
+            axisLine: { lineStyle: { color: '#E5E5E5' } },
+            axisTick: { show: false },
+            axisLabel: {
+                color: function (val) { return val === (mIdx + '月') ? '#0057B8' : '#656565'; },
+                fontWeight: function (val) { return val === (mIdx + '月') ? '700' : 'normal'; }
+            }
+        };
+        opt.grid = { left: 12, right: 12, top: 26, bottom: 10, containLabel: true };
+        opt.yAxis = [
+            { type: 'value', min: 80, max: 100, splitLine: { lineStyle: { color: '#EEEEEC' } }, axisLabel: { formatter: '{value}%', color: '#ACACAC' } },
+            { type: 'value', min: 0, max: 20, splitLine: { show: false }, axisLabel: { formatter: '{value}%', color: '#ACACAC' } }
+        ];
+        opt.tooltip.formatter = function (ps) {
+            return ps[0].name + '<br/>' + ps.map(function (p) { return p.marker + ' ' + p.seriesName + '：' + p.value + '%'; }).join('<br/>');
+        };
+        opt.series = [
+            { name: '钎焊准交率', type: 'line', smooth: true, symbolSize: 6, lineStyle: { width: 2.5 }, itemStyle: { color: '#0068FF' }, data: trendSlice.map(function (t) { return t.brazingRate; }) },
+            { name: '钎焊延期率', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 5, itemStyle: { color: '#11387F' }, lineStyle: { color: '#11387F', width: 2, type: 'dashed' }, data: trendSlice.map(function (t) { return t.brazingDelay; }) },
+            { name: '可拆准交率', type: 'line', smooth: true, symbolSize: 6, itemStyle: { color: '#2FA984' }, lineStyle: { color: '#2FA984', width: 2.5 }, data: trendSlice.map(function (t) { return t.detachRate; }) },
+            { name: '可拆延期率', type: 'line', yAxisIndex: 1, smooth: true, symbolSize: 5, itemStyle: { color: '#E87722' }, lineStyle: { color: '#E87722', width: 2, type: 'dashed' }, data: trendSlice.map(function (t) { return t.detachDelay; }) }
+        ];
+        charts.trend.setOption(opt, true);
+    }
+
+    function renderWeekly() {
+        document.getElementById('weekly-tbody').innerHTML = DATA.weekly.map(function (w) {
+            return '<tr>' +
+                '<td class="text-[#0B1128] font-medium">' + w.week + '</td>' +
+                '<td class="text-right font-semibold text-[#2FA984]">' + w.bRate + '%</td>' +
+                '<td class="text-right text-[#E87722]">' + w.bDelay + '%</td>' +
+                '<td class="text-right font-semibold text-[#2FA984]">' + w.dRate + '%</td>' +
+                '<td class="text-right text-[#E87722]">' + w.dDelay + '%</td></tr>';
+        }).join('');
+    }
+
+    /* ============================================================
+       统一核心人效数据层与渲染（钎焊一线/非一线、可拆一线/非一线、模具公司人效）
+       ============================================================ */
+    var EFF_DATA = {
+        months: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+        // 钎焊车间综合人效（万元/人·月）
+        brazingAvg: [70.5, 69.2, 73.0, 72.4, 75.0, 77.5, 76.2, 77.8, 78.5, 77.0, 76.2, 79.5],
+        // 钎焊一线人均产出效率（万元/人·月）
+        brazingFront: [68.5, 67.2, 71.0, 70.4, 73.2, 75.8, 74.6, 76.5, 78.5, 77.2, 75.8, 79.2],
+        // 钎焊非一线人均产出效率（万元/人·月）
+        brazingNonFront: [165.0, 162.0, 172.5, 170.0, 176.8, 182.0, 180.5, 183.0, 186.2, 184.0, 181.5, 188.0],
+        // 可拆车间综合人效（万元/人·月）
+        detachAvg: [59.5, 58.0, 61.8, 61.2, 63.5, 65.8, 64.5, 65.2, 65.8, 65.2, 64.0, 67.2],
+        // 可拆一线人均产出效率（万元/人·月）
+        detachFront: [58.0, 56.5, 60.2, 59.8, 62.1, 64.5, 63.2, 64.8, 65.8, 65.0, 63.8, 67.0],
+        // 可拆非一线人均产出效率（万元/人·月）
+        detachNonFront: [138.0, 135.0, 142.0, 140.5, 145.2, 149.0, 147.5, 150.2, 152.0, 150.5, 148.0, 154.0],
+        // 模具公司人均产出效率（万元/人·月）
+        moldCompany: [48.5, 47.0, 51.2, 50.8, 52.5, 55.0, 53.8, 55.2, 56.4, 55.8, 54.5, 57.8],
+        // 全厂综合人效基准（万元/人·月）
+        companyAvg: [59.6, 61.2, 62.5, 63.8, 64.9, 66.0, 66.2, 66.5, 66.8, 66.4, 65.8, 67.2]
+    };
+
+    var currentEffWs = 'brazing';
+
+    function switchEffWs(wsKey) {
+        currentEffWs = wsKey;
+        var btns = ['Brazing', 'Detach', 'Mold'];
+        var keyMap = { brazing: 'Brazing', detach: 'Detach', mold: 'Mold' };
+        btns.forEach(function(b) {
+            var el = document.getElementById('btnEff' + b);
+            if (!el) return;
+            if (b === keyMap[wsKey]) {
+                el.className = 'px-2.5 py-1 rounded-md text-xs font-bold transition-all bg-white text-[#0057B8] shadow-sm';
+            } else {
+                el.className = 'px-2.5 py-1 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]';
+            }
+        });
+        var mIdx = parseInt(BDLayout.getPeriod().month) || 9;
+        renderEffSection(mIdx);
+    }
+    window.switchEffWs = switchEffWs;
+
+    function renderEffSection(mIdx) {
+        mIdx = mIdx || (parseInt(BDLayout.getPeriod().month) || 9);
+        var monthsSlice = EFF_DATA.months.slice(0, mIdx);
+
+        var dom = document.getElementById('unifiedEffChart');
+        if (!dom) return;
+        charts.unifiedEff = charts.unifiedEff || echarts.init(dom);
+
+        var legendData = [];
+        var seriesList = [];
+        var tooltipTitleSuffix = '钎焊车间人效结构';
+
+        if (currentEffWs === 'detach') {
+            tooltipTitleSuffix = '可拆车间人效结构';
+            legendData = ['可拆一线人效', '可拆非一线人效', '可拆综合人效'];
+            seriesList = [
+                {
+                    name: '可拆一线人效',
+                    type: 'bar',
+                    stack: 'detachDetail',
+                    barWidth: 22,
+                    itemStyle: { color: '#5F8E68' },
+                    data: EFF_DATA.detachFront.slice(0, mIdx)
+                },
+                {
+                    name: '可拆非一线人效',
+                    type: 'bar',
+                    stack: 'detachDetail',
+                    barWidth: 22,
+                    itemStyle: { color: '#BCE4C7', borderRadius: [4, 4, 0, 0] },
+                    data: EFF_DATA.detachNonFront.slice(0, mIdx)
+                },
+                {
+                    name: '可拆综合人效',
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 7,
+                    lineStyle: { width: 3, color: '#E87722' },
+                    itemStyle: { color: '#E87722' },
+                    data: EFF_DATA.detachAvg.slice(0, mIdx)
+                }
+            ];
+        } else if (currentEffWs === 'mold') {
+            tooltipTitleSuffix = '模具公司人效走势';
+            legendData = ['模具公司人效', '全厂综合基准'];
+            seriesList = [
+                {
+                    name: '模具公司人效',
+                    type: 'bar',
+                    barWidth: 24,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#0057B8' },
+                            { offset: 1, color: '#4A89C8' }
+                        ]),
+                        borderRadius: [4, 4, 0, 0]
+                    },
+                    data: EFF_DATA.moldCompany.slice(0, mIdx)
+                },
+                {
+                    name: '全厂综合基准',
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'diamond',
+                    symbolSize: 7,
+                    lineStyle: { width: 2.5, color: '#E87722' },
+                    itemStyle: { color: '#E87722' },
+                    data: EFF_DATA.companyAvg.slice(0, mIdx)
+                }
+            ];
+        } else {
+            // 默认钎焊车间
+            tooltipTitleSuffix = '钎焊车间人效结构';
+            legendData = ['钎焊一线人效', '钎焊非一线人效', '钎焊综合人效'];
+            seriesList = [
+                {
+                    name: '钎焊一线人效',
+                    type: 'bar',
+                    stack: 'brazingDetail',
+                    barWidth: 22,
+                    itemStyle: { color: '#0057B8' },
+                    data: EFF_DATA.brazingFront.slice(0, mIdx)
+                },
+                {
+                    name: '钎焊非一线人效',
+                    type: 'bar',
+                    stack: 'brazingDetail',
+                    barWidth: 22,
+                    itemStyle: { color: '#9EBFDD', borderRadius: [4, 4, 0, 0] },
+                    data: EFF_DATA.brazingNonFront.slice(0, mIdx)
+                },
+                {
+                    name: '钎焊综合人效',
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 7,
+                    lineStyle: { width: 3, color: '#E87722' },
+                    itemStyle: { color: '#E87722' },
+                    data: EFF_DATA.brazingAvg.slice(0, mIdx)
+                }
+            ];
+        }
+
+        var opt = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                borderColor: 'rgba(255, 255, 255, 0.2)',
+                padding: [8, 14],
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                formatter: function (ps) {
+                    var mName = ps[0].axisValue;
+                    var res = '<div class="font-bold text-xs mb-1.5 border-b border-white/15 pb-1">' + mName + ' ' + tooltipTitleSuffix + '</div>';
+                    ps.forEach(function (p) {
+                        res += '<div class="flex items-center justify-between gap-4 py-0.5">' +
+                            '<span><span style="color:' + p.color + '">● </span>' + p.seriesName + '</span>' +
+                            '<b>' + p.value + ' 万元/人·月</b>' +
+                            '</div>';
+                    });
+                    return res;
+                }
+            },
+            legend: {
+                data: legendData,
+                top: 0,
+                right: 0,
+                itemWidth: 10,
+                itemHeight: 10,
+                textStyle: { fontSize: 11, color: '#6B7A94' }
+            },
+            grid: { left: 46, right: 24, top: 34, bottom: 26 },
+            xAxis: {
+                type: 'category',
+                data: monthsSlice,
+                axisLine: { lineStyle: { color: '#E5E5E5' } },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: function (val) { return val === (mIdx + '月') ? '#0057B8' : '#1A2332'; },
+                    fontWeight: function (val) { return val === (mIdx + '月') ? '700' : '500'; },
+                    fontSize: 11.5
+                }
+            },
+            yAxis: {
+                type: 'value',
+                splitLine: { lineStyle: { color: '#EEEEEC' } },
+                axisLabel: { color: '#6B7A94', fontSize: 10.5 }
+            },
+            series: seriesList
+        };
+
+        charts.unifiedEff.setOption(opt, true);
+    }
+
+    /* ============================================================
+       实物量人效数据层与渲染（人均台数与吨位数 · 月度走势）
+       ============================================================ */
+    var PHYS_EFF_DATA = {
+        months: ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+        // 钎焊车间月度人均生产台数（台/人·月）
+        brazingUnits: [28.2, 27.5, 29.8, 29.2, 31.0, 32.5, 31.8, 32.2, 32.8, 31.5, 30.8, 33.2],
+        // 可拆车间月度人均生产台数（台/人·月）
+        detachUnits: [12.8, 12.2, 13.5, 13.0, 14.2, 15.0, 14.5, 14.8, 15.2, 14.6, 14.0, 15.6],
+        // 生产中心综合月度人均台数（台/人·月）
+        companyUnits: [23.5, 22.8, 24.8, 24.2, 25.8, 27.1, 26.5, 26.8, 27.4, 26.3, 25.6, 27.8],
+
+        // 钎焊车间月度人均生产吨位数（吨/人·月）
+        brazingWeight: [2.8, 2.7, 3.0, 2.9, 3.1, 3.3, 3.2, 3.3, 3.4, 3.2, 3.1, 3.5],
+        // 可拆车间月度人均生产吨位数（吨/人·月）
+        detachWeight: [3.4, 3.3, 3.6, 3.5, 3.8, 4.0, 3.9, 4.0, 4.1, 3.9, 3.8, 4.2],
+        // 生产中心综合月度人均吨位数（吨/人·月）
+        companyWeight: [3.0, 2.9, 3.2, 3.1, 3.3, 3.5, 3.4, 3.5, 3.6, 3.4, 3.3, 3.7]
+    };
+
+    var currentPhysView = 'units';
+
+    function switchPhysView(viewKey) {
+        currentPhysView = viewKey;
+        var btns = ['Units', 'Weight'];
+        var keyMap = { units: 'Units', weight: 'Weight' };
+        btns.forEach(function(b) {
+            var el = document.getElementById('btnPhys' + b);
+            if (!el) return;
+            if (b === keyMap[viewKey]) {
+                el.className = 'px-2.5 py-1 rounded-md text-xs font-bold transition-all bg-white text-[#0057B8] shadow-sm';
+            } else {
+                el.className = 'px-2.5 py-1 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]';
+            }
+        });
+        var mIdx = parseInt(BDLayout.getPeriod().month) || 9;
+        renderPhysEffSection(mIdx);
+    }
+    window.switchPhysView = switchPhysView;
+
+    function renderPhysEffSection(mIdx) {
+        mIdx = mIdx || (parseInt(BDLayout.getPeriod().month) || 9);
+        var monthsSlice = PHYS_EFF_DATA.months.slice(0, mIdx);
+
+        var dom = document.getElementById('physOutputEffChart');
+        if (!dom) return;
+        charts.physEff = charts.physEff || echarts.init(dom);
+
+        var seriesList = [];
+        var legendData = [];
+        var yAxisList = [];
+
+        if (currentPhysView === 'units') {
+            legendData = ['钎焊车间人均台数', '可拆车间人均台数', '生产中心平均台数'];
+            yAxisList = [
+                {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: '#EEEEEC' } },
+                    axisLabel: { color: '#6B7A94', fontSize: 10.5 }
+                }
+            ];
+            seriesList = [
+                {
+                    name: '钎焊车间人均台数',
+                    type: 'bar',
+                    barWidth: 16,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#0057B8' },
+                            { offset: 1, color: '#4A89C8' }
+                        ]),
+                        borderRadius: [3, 3, 0, 0]
+                    },
+                    data: PHYS_EFF_DATA.brazingUnits.slice(0, mIdx)
+                },
+                {
+                    name: '可拆车间人均台数',
+                    type: 'bar',
+                    barWidth: 16,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#5F8E68' },
+                            { offset: 1, color: '#8DC63F' }
+                        ]),
+                        borderRadius: [3, 3, 0, 0]
+                    },
+                    data: PHYS_EFF_DATA.detachUnits.slice(0, mIdx)
+                },
+                {
+                    name: '生产中心平均台数',
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 7,
+                    lineStyle: { width: 3, color: '#E87722' },
+                    itemStyle: { color: '#E87722' },
+                    data: PHYS_EFF_DATA.companyUnits.slice(0, mIdx)
+                }
+            ];
+        } else {
+            legendData = ['钎焊车间人均吨位', '可拆车间人均吨位', '生产中心平均吨位'];
+            yAxisList = [
+                {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: '#EEEEEC' } },
+                    axisLabel: { color: '#6B7A94', fontSize: 10.5 }
+                }
+            ];
+            seriesList = [
+                {
+                    name: '钎焊车间人均吨位',
+                    type: 'bar',
+                    barWidth: 16,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#0057B8' },
+                            { offset: 1, color: '#4A89C8' }
+                        ]),
+                        borderRadius: [3, 3, 0, 0]
+                    },
+                    data: PHYS_EFF_DATA.brazingWeight.slice(0, mIdx)
+                },
+                {
+                    name: '可拆车间人均吨位',
+                    type: 'bar',
+                    barWidth: 16,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#5F8E68' },
+                            { offset: 1, color: '#8DC63F' }
+                        ]),
+                        borderRadius: [3, 3, 0, 0]
+                    },
+                    data: PHYS_EFF_DATA.detachWeight.slice(0, mIdx)
+                },
+                {
+                    name: '生产中心平均吨位',
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'diamond',
+                    symbolSize: 7,
+                    lineStyle: { width: 3, color: '#E87722' },
+                    itemStyle: { color: '#E87722' },
+                    data: PHYS_EFF_DATA.companyWeight.slice(0, mIdx)
+                }
+            ];
+        }
+
+        var opt = {
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                borderColor: 'rgba(255, 255, 255, 0.2)',
+                padding: [8, 14],
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                formatter: function (ps) {
+                    var mName = ps[0].axisValue;
+                    var res = '<div class="font-bold text-xs mb-1.5 border-b border-white/15 pb-1">' + mName + ' 实物量人效</div>';
+                    ps.forEach(function (p) {
+                        var unit = p.seriesName.indexOf('吨位') !== -1 || (currentPhysView === 'weight') ? ' 吨/人·月' : ' 台/人·月';
+                        res += '<div class="flex items-center justify-between gap-4 py-0.5">' +
+                            '<span><span style="color:' + p.color + '">● </span>' + p.seriesName + '</span>' +
+                            '<b>' + p.value + unit + '</b>' +
+                            '</div>';
+                    });
+                    return res;
+                }
+            },
+            legend: {
+                data: legendData,
+                top: 0,
+                right: 0,
+                itemWidth: 10,
+                itemHeight: 10,
+                textStyle: { fontSize: 11, color: '#6B7A94' }
+            },
+            grid: { left: 46, right: 24, top: 34, bottom: 26 },
+            xAxis: {
+                type: 'category',
+                data: monthsSlice,
+                axisLine: { lineStyle: { color: '#E5E5E5' } },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: function (val) { return val === (mIdx + '月') ? '#0057B8' : '#1A2332'; },
+                    fontWeight: function (val) { return val === (mIdx + '月') ? '700' : '500'; },
+                    fontSize: 11.5
+                }
+            },
+            yAxis: yAxisList,
+            series: seriesList
+        };
+
+        charts.physEff.setOption(opt, true);
+    }
+
+    /* ---------- 月份联动 ---------- */
+    function onPeriodChange() {
+        var p = BDLayout.getPeriod();
+        // 模拟月份切换：直接取该月快照（后端接入后替换为真实接口数据）
+        var mIdx = parseInt(p.month) || 9;
+        syncCurrent(mIdx);
+        renderKPIs();
+        renderCompare();
+        renderTrend(mIdx);
+        renderWorkshops();
+        renderWeekly();
+        renderEffSection(mIdx);
+        renderPhysEffSection(mIdx);
+    }
+    window.onPeriodChange = onPeriodChange;
+
+    /* ---------- 初始化 ---------- */
+    BDLayout.render({ active: "prod-delivery" });
+    syncCurrent(9);
+    renderKPIs();
+    renderCompare();
+    renderTrend(9);
+    renderWorkshops();
+    renderWeekly();
+    renderEffSection(9);
+    renderPhysEffSection(9);
+    window.addEventListener('resize', function () { Object.values(charts).forEach(function (c) { c.resize(); }); });
+    </script>
+</body>
+</html>

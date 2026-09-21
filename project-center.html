@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>项目分析中心 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        .kpi-row-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+        @media (max-width: 1200px) {
+            .kpi-row-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .kpi-row-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        th {
+            font-family: 'Roboto', 'AlfaLaval', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+
+        <!-- ============== 左侧导航栏 (静态预渲染，杜绝切换闪烁) ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <!-- ============== 主内容区 ============== -->
+        <main class="flex-1 overflow-auto">
+            <!-- 顶部导航条 (与企业经营驾驶舱 100% 相同，已取消导出数据按钮) -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5">
+                <div class="flex items-center justify-between">
+                    <!-- 左侧：页面标题 -->
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">项目分析中心</span>
+                    </div>
+
+                    <!-- 右侧：年月选择胶囊 (与驾驶舱 100% 保持一致：动态近三年与未来月份拦截) -->
+                    <div class="flex items-center">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <!-- 年份选择触发器 -->
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 年份下拉菜单 (动态渲染近三年) -->
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+
+                                <!-- 月份选择触发器 -->
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 月份下拉菜单 (动态禁用未来月份) -->
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                                        <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                            <span>选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+
+                <!-- 模块 1：项目分析总览与重大项目执行看板（企业经营驾驶舱同款卡片级封装） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">项目分析总览</h3>
+                        </div>
+
+                        <!-- 顶部 6 大核心 KPI -->
+                        <div id="kpi-cards" class="sales-overview-grid mb-3"></div>
+
+                        <!-- 重大项目执行看板（嵌入在 .chart-card 玻璃子卡片内） -->
+                        <div class="chart-card flex flex-col justify-start" style="min-height: 300px;">
+                    <!-- 标题栏：3-Tab 切换器与状态徽标 -->
+                    <div class="flex items-center justify-between mb-2.5 flex-shrink-0">
+                        <div class="flex items-center">
+                            <span class="section-title text-base font-bold">重大项目执行看板</span>
+                            <!-- 胶囊分段 3-Tab 切换 (已取消编号与计数) -->
+                            <div class="inline-flex p-0.5 rounded-lg bg-[rgba(26,35,50,0.06)] border border-[rgba(26,35,50,0.08)] ml-4">
+                                <button type="button" id="tabBtnPrjDev" onclick="switchPrjTab('dev')" class="px-3.5 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-[#0057B8] shadow-sm">
+                                    新研发项目
+                                </button>
+                                <button type="button" id="tabBtnPrjEquip" onclick="switchPrjTab('equip')" class="px-3.5 py-1.5 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]">
+                                    新投资设备
+                                </button>
+                                <button type="button" id="tabBtnPrjEng" onclick="switchPrjTab('eng')" class="px-3.5 py-1.5 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]">
+                                    工程技改项目
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 右侧动态徽标 -->
+                        <div id="prjTabBadges" class="flex items-center gap-2 text-xs">
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-[#8DC63F]/15 text-[#4E7F17] border border-[#8DC63F]/30 text-[11px]">
+                                在轨推进 23项
+                            </span>
+                            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold bg-[#E87722]/15 text-[#C45E10] border border-[#E87722]/30 text-[11px]">
+                                阶段预警 3项
+                            </span>
+                        </div>
+                    </div>
+
+                    <!-- 动态表格内容区 (对齐企业经营驾驶舱的表格样式规范) -->
+                    <div class="w-full flex-1 flex flex-col min-h-0">
+                        <!-- Tab 1: 新研发项目 -->
+                        <div id="tabContentPrjDev" class="w-full flex-1 flex flex-col min-h-0">
+                            <table class="w-full text-center text-xs border-collapse flex-1" style="height: 100%; table-layout: fixed;">
+                                <thead>
+                                    <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                        <th class="px-2 rounded-l text-center font-bold" style="width: 12%; vertical-align: middle;">项目类型</th>
+                                        <th class="px-2 text-center font-bold" style="width: 20%; vertical-align: middle;">项目名称</th>
+                                        <th class="px-2 text-center font-bold" style="width: 15%; vertical-align: middle;">门径阶段</th>
+                                        <th class="px-2 text-center font-bold" style="width: 10%; vertical-align: middle;">项目经理</th>
+                                        <th class="px-2 text-center font-bold" style="width: 11%; vertical-align: middle;">总预算</th>
+                                        <th class="px-2 text-center font-bold" style="width: 11%; vertical-align: middle;">已投入</th>
+                                        <th class="px-2 text-center font-bold" style="width: 11%; vertical-align: middle;">预期达产年收益</th>
+                                        <th class="px-2 rounded-r text-center font-bold" style="width: 10%; vertical-align: middle;">健康度</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyPrjDev" class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-[11.5px]"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Tab 2: 新投资设备 -->
+                        <div id="tabContentPrjEquip" class="hidden w-full flex-1 flex flex-col min-h-0">
+                            <table class="w-full text-center text-xs border-collapse flex-1" style="height: 100%; table-layout: fixed;">
+                                <thead>
+                                    <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                        <th class="px-2 rounded-l text-center font-bold" style="width: 22%; vertical-align: middle;">设备项目名称</th>
+                                        <th class="px-2 text-center font-bold" style="width: 11%; vertical-align: middle;">应用车间</th>
+                                        <th class="px-2 text-center font-bold" style="width: 11%; vertical-align: middle;">采购合同额</th>
+                                        <th class="px-2 text-center font-bold" style="width: 14%; vertical-align: middle;">已付款进度</th>
+                                        <th class="px-2 text-center font-bold" style="width: 16%; vertical-align: middle;">安装调试节点</th>
+                                        <th class="px-2 text-center font-bold" style="width: 8%; vertical-align: middle;">OEE</th>
+                                        <th class="px-2 text-center font-bold" style="width: 9%; vertical-align: middle;">达产新增产能</th>
+                                        <th class="px-2 rounded-r text-center font-bold" style="width: 9%; vertical-align: middle;">当前状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyPrjEquip" class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-[11.5px]"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- Tab 3: 工程技改项目 -->
+                        <div id="tabContentPrjEng" class="hidden w-full flex-1 flex flex-col min-h-0">
+                            <table class="w-full text-center text-xs border-collapse flex-1" style="height: 100%; table-layout: fixed;">
+                                <thead>
+                                    <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                        <th class="px-2 rounded-l text-center font-bold" style="width: 22%; vertical-align: middle;">工程项目名称</th>
+                                        <th class="px-2 text-center font-bold" style="width: 10%; vertical-align: middle;">工程类别</th>
+                                        <th class="px-2 text-center font-bold" style="width: 10%; vertical-align: middle;">总投资预算</th>
+                                        <th class="px-2 text-center font-bold" style="width: 10%; vertical-align: middle;">累计支出</th>
+                                        <th class="px-2 text-center font-bold" style="width: 18%; vertical-align: middle;">施工进度</th>
+                                        <th class="px-2 text-center font-bold" style="width: 10%; vertical-align: middle;">竣工目标</th>
+                                        <th class="px-2 text-center font-bold" style="width: 8%; vertical-align: middle;">设计变更率</th>
+                                        <th class="px-2 rounded-r text-center font-bold" style="width: 12%; vertical-align: middle;">安环状态</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyPrjEng" class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-[11.5px]"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 2：项目排期、投资支出与关键卡点调度 -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">进度排期、投资管控与卡点调度</h3>
+                        </div>
+
+                        <!-- 第一行：甘特排期与投资S曲线双图 -->
+                        <div class="grid grid-cols-12 gap-3.5 mb-3">
+                            <div class="col-span-12 lg:col-span-7 chart-card">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <div class="chart-card-title mb-0">
+                                        <span class="chart-card-title-text">重点项目进度里程碑全景</span>
+                                    </div>
+                                    <span class="text-[11px] text-[#0057B8] font-semibold">2026 年度执行中</span>
+                                </div>
+                                <div id="gantt-chart" class="chart-box" style="height: 250px; min-height: 250px;"></div>
+                            </div>
+
+                            <div class="col-span-12 lg:col-span-5 chart-card">
+                                <div class="flex items-center justify-between mb-1.5">
+                                    <div class="chart-card-title mb-0">
+                                        <span class="chart-card-title-text">投资预算 vs 实际支出</span>
+                                    </div>
+                                    <span class="text-[11px] text-[#5F8E68] font-bold">预算可控 64.3%</span>
+                                </div>
+                                <div id="scurve-chart" class="chart-box" style="height: 250px; min-height: 250px;"></div>
+                            </div>
+                        </div>
+
+                        <!-- 第二行：关键卡点与逾期风控追踪表 -->
+                        <div class="chart-card">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="chart-card-title mb-0 flex items-center gap-2">
+                                    <span class="w-2 h-2 rounded-full bg-[#E87722] animate-pulse"></span>
+                                    <span class="chart-card-title-text">重点项目临界预警与关键卡点调度清单</span>
+                                </div>
+                                <span class="text-[11px] text-[#6B7A94]">需跨部门协调调度项 (3项)</span>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                            <th class="px-2 rounded-l font-bold" style="width: 16%; vertical-align: middle;">项目名称</th>
+                                            <th class="px-2 font-bold text-center" style="width: 12%; vertical-align: middle;">预警类型</th>
+                                            <th class="px-2 font-bold" style="width: 28%; vertical-align: middle;">核心卡点原因诊断</th>
+                                            <th class="px-2 font-bold text-center" style="width: 10%; vertical-align: middle;">责任人</th>
+                                            <th class="px-2 font-bold text-center" style="width: 12%; vertical-align: middle;">需协同部门</th>
+                                            <th class="px-2 font-bold text-center" style="width: 11%; vertical-align: middle;">承诺解决节点</th>
+                                            <th class="px-2 rounded-r text-center font-bold" style="width: 11%; vertical-align: middle;">协调状态</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-[11.5px]">
+                                        <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 38px;">
+                                            <td class="px-2 font-medium text-[#1A2332]" style="vertical-align: middle;">BP350大温差机组</td>
+                                            <td class="px-2 text-center" style="vertical-align: middle;"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#E87722]/15 text-[#C45E10]">物料交付滞后</span></td>
+                                            <td class="px-2 text-slate-700 leading-snug" style="vertical-align: middle;">高温进口高精度温度传感器供方交期延期5天，影响全负荷温升测试</td>
+                                            <td class="px-2 text-center font-medium" style="vertical-align: middle;">李工</td>
+                                            <td class="px-2 text-center font-medium text-[#0057B8]" style="vertical-align: middle;">采购部+供应链</td>
+                                            <td class="px-2 text-center font-medium text-slate-600" style="vertical-align: middle;">09-05 (加急空运)</td>
+                                            <td class="px-2 text-center" style="vertical-align: middle;"><span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-xs font-semibold">协同处理中</span></td>
+                                        </tr>
+                                        <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 38px;">
+                                            <td class="px-2 font-medium text-[#1A2332]" style="vertical-align: middle;">3#大型真空钎焊炉</td>
+                                            <td class="px-2 text-center" style="vertical-align: middle;"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#D0021B]/15 text-[#D0021B]">基建电力扩容</span></td>
+                                            <td class="px-2 text-slate-700 leading-snug" style="vertical-align: middle;">车间专线变压器扩容施工节点与设备进场就位时间冲突，需统筹停电割接窗口</td>
+                                            <td class="px-2 text-center font-medium" style="vertical-align: middle;">顾工</td>
+                                            <td class="px-2 text-center font-medium text-[#0057B8]" style="vertical-align: middle;">设备动力部+供电局</td>
+                                            <td class="px-2 text-center font-medium text-slate-600" style="vertical-align: middle;">09-12 (周日割接)</td>
+                                            <td class="px-2 text-center" style="vertical-align: middle;"><span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-xs font-semibold">方案已锁定</span></td>
+                                        </tr>
+                                        <tr class="hover:bg-[#0057B8]/5 transition-colors" style="height: 38px;">
+                                            <td class="px-2 font-medium text-[#1A2332]" style="vertical-align: middle;">二期洁净车间扩建</td>
+                                            <td class="px-2 text-center" style="vertical-align: middle;"><span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-[#E87722]/15 text-[#C45E10]">消防管路变更</span></td>
+                                            <td class="px-2 text-slate-700 leading-snug" style="vertical-align: middle;">二层结构梁避让导致局部喷淋主管道走向微调，已递交设计院加急出具变更图</td>
+                                            <td class="px-2 text-center font-medium" style="vertical-align: middle;">王工</td>
+                                            <td class="px-2 text-center font-medium text-[#0057B8]" style="vertical-align: middle;">总包方+设计院</td>
+                                            <td class="px-2 text-center font-medium text-slate-600" style="vertical-align: middle;">09-08 (审图通过)</td>
+                                            <td class="px-2 text-center" style="vertical-align: middle;"><span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-semibold">审批流转中</span></td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    /* ============================================================
+       项目分析中心 (Project Center) - 可视化与数据引擎
+       ============================================================ */
+    var charts = {};
+
+    function fmt(n) { return (n || 0).toLocaleString('zh-CN'); }
+
+    /* ---------- 1. 渲染 6 大核心投资与进度 KPI (驾驶舱统一 sales-overview-cell 样式) ---------- */
+    function renderKPIs() {
+        var cards = [
+            { label: '在建/在研项目总数', value: '26', unit: '项', color: '#0057B8' },
+            { label: '投资预算总额 (CAPEX)', value: '4,850', unit: '万', color: '#1A2332' },
+            { label: '已发生成本投入', value: '3,120', unit: '万', color: '#5F8E68' },
+            { label: '里程碑按期达成率', value: '91.2', unit: '%', color: '#5F8E68' },
+            { label: '预期年化收益/增效', value: '6,200', unit: '万', color: '#0057B8' },
+            { label: '综合投资回收期', value: '1.8', unit: '年', color: '#5F8E68' }
+        ];
+
+        var dom = document.getElementById('kpi-cards');
+        if (dom) {
+            dom.innerHTML = cards.map(function (c) {
+                return '<div class="sales-overview-cell">' +
+                    '<div class="kpi-label">' + c.label + '</div>' +
+                    '<div class="kpi-value sales-overview-value" style="color:' + c.color + '">' + c.value + '<span class="unit text-xs">' + c.unit + '</span></div>' +
+                '</div>';
+            }).join('');
+        }
+    }
+
+    /* ---------- 2. 渲染 3-Tab 项目列表数据 (与企业经营驾驶舱保持一致格式) ---------- */
+    var devProjects = [
+        { type: '新品开发', name: 'BL240 高效钎焊板片开发', stage: '试模阶段 (8/8)', pm: '张工', budget: '380万', actual: '260万', roi: '3,450万', health: '🟢 正常推进', cls: 'text-[#5F8E68]' },
+        { type: '新品开发', name: 'BP350 大温差换热机组研发', stage: '装配测试 (8/12)', pm: '李工', budget: '520万', actual: '410万', roi: '2,800万', health: '🟡 临界跟进', cls: 'text-[#E87722]' },
+        { type: '专利攻坚', name: '双回路高压板型专利攻关', stage: '审查答辩 (8/18)', pm: '王工', budget: '260万', actual: '190万', roi: '1,850万', health: '🟢 正常推进', cls: 'text-[#5F8E68]' },
+        { type: '降本工艺', name: '不锈钢 304 材料替代与钎焊优化', stage: '批量试制 (8/5)', pm: '赵工', budget: '180万', actual: '140万', roi: '年降本186万', health: '🟢 正常推进', cls: 'text-[#5F8E68]' },
+        { type: '前沿预研', name: '换热板片微通道流场拓扑优化', stage: '方案设计 (7/20)', pm: '孙工', budget: '150万', actual: '65万', roi: '1,200万', health: '🟢 正常推进', cls: 'text-[#5F8E68]' },
+        { type: '资质认证', name: 'ASME 压力容器换热器认证专项', stage: '现场审核 (8/28)', pm: '钱工', budget: '120万', actual: '95万', roi: '海外准入', health: '🟢 正常推进', cls: 'text-[#5F8E68]' }
+    ];
+
+    var equipProjects = [
+        { name: '5# 2000T 全自动重型液压冲压机', workshop: '板片车间', budget: '1,280万', pay: '80% (1,024万)', node: '调试爬坡中 (8/25~9/10)', oee: '92.5%', cap: '+45万片/年', status: '🟢 爬坡调试', cls: 'text-[#5F8E68]' },
+        { name: '3# 大型连续真空钎焊炉扩建', workshop: '钎焊车间', budget: '860万', pay: '60% (516万)', node: '进厂就位安装 (8/20~9/15)', oee: '94.0%', cap: '+18万台/年', status: '🟡 电力割接', cls: 'text-[#E87722]' },
+        { name: '机器人全自动叠片与组装工作站', workshop: '装配车间', budget: '450万', pay: '90% (405万)', node: '试运行验收 (8/10~8/30)', oee: '95.0%', cap: '节约人工40%', status: '🟢 终验合格', cls: 'text-[#5F8E68]' },
+        { name: '智能氦检回收与高精度气密系统', workshop: '质检车间', budget: '320万', pay: '50% (160万)', node: '制造加工监造 (8/01~9/20)', oee: '98.0%', cap: '漏检率<0.01%', status: '🟢 监造催货', cls: 'text-[#5F8E68]' },
+        { name: '高精密切割数控加工中心', workshop: '模具车间', budget: '240万', pay: '100% (240万)', node: '已正式投产运行', oee: '91.0%', cap: '开模周期-25%', status: '🟢 正式投产', cls: 'text-[#5F8E68]' }
+    ];
+
+    var engProjects = [
+        { name: '二期高效换热器洁净车间扩建', type: '基建厂房', budget: '980万', spent: '650万', progress: 68, finish: '2026-11-30', changeRate: '2.1%', safe: '🟢 安全施工180天', cls: 'text-emerald-700' },
+        { name: '智能立体仓储与物流中心改造', type: '仓储物流', budget: '420万', spent: '310万', progress: 75, finish: '2026-09-30', changeRate: '1.5%', safe: '🟢 试运转联调', cls: 'text-emerald-700' },
+        { name: '厂区屋顶分布式光伏节能工程', type: '公用节能', budget: '260万', spent: '200万', progress: 85, finish: '2026-08-31', changeRate: '0.8%', safe: '🟢 并网验收中', cls: 'text-emerald-700' },
+        { name: '涂装与酸洗环保排风深度治理', type: '环保安防', budget: '180万', spent: '140万', progress: 80, finish: '2026-10-15', changeRate: '0.0%', safe: '🟢 环评达标在轨', cls: 'text-emerald-700' }
+    ];
+
+    function renderTables() {
+        // 渲染 Tab 1: 新研发项目
+        var tbDev = document.getElementById('tbodyPrjDev');
+        if (tbDev) {
+            tbDev.innerHTML = devProjects.map(function(p) {
+                return '<tr class="hover:bg-[#0057B8]/5 transition-colors">' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.type + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.name + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.stage + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.pm + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;"><span class="font-mono">' + p.budget.replace('万', '') + '</span>万</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;"><span class="font-mono">' + p.actual.replace('万', '') + '</span>万</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + (p.roi.includes('万') ? '<span class="font-mono">' + p.roi.replace('万', '') + '</span>万' : p.roi) + '</td>' +
+                    '<td class="px-2 text-center font-bold ' + p.cls + '" style="vertical-align: middle;">' + p.health + '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        // 渲染 Tab 2: 新投资设备
+        var tbEquip = document.getElementById('tbodyPrjEquip');
+        if (tbEquip) {
+            tbEquip.innerHTML = equipProjects.map(function(p) {
+                return '<tr class="hover:bg-[#0057B8]/5 transition-colors">' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.name + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.workshop + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;"><span class="font-mono">' + p.budget.replace('万', '') + '</span>万</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.pay + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.node + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;"><span class="font-mono">' + p.oee + '</span></td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.cap + '</td>' +
+                    '<td class="px-2 text-center font-bold ' + p.cls + '" style="vertical-align: middle;">' + p.status + '</td>' +
+                '</tr>';
+            }).join('');
+        }
+
+        // 渲染 Tab 3: 工程技改项目
+        var tbEng = document.getElementById('tbodyPrjEng');
+        if (tbEng) {
+            tbEng.innerHTML = engProjects.map(function(p) {
+                return '<tr class="hover:bg-[#0057B8]/5 transition-colors">' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.name + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;">' + p.type + '</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;"><span class="font-mono">' + p.budget.replace('万', '') + '</span>万</td>' +
+                    '<td class="px-2 text-center font-medium" style="vertical-align: middle;"><span class="font-mono">' + p.spent.replace('万', '') + '</span>万</td>' +
+                    '<td class="px-2 text-center" style="vertical-align: middle;">' +
+                        '<div class="flex items-center justify-center gap-2">' +
+                            '<div class="w-24 bg-slate-200/80 rounded-full h-1.5 overflow-hidden">' +
+                                '<div class="bg-[#0057B8] h-1.5 rounded-full" style="width: ' + p.progress + '%"></div>' +
+                            '</div>' +
+                            '<span class="font-mono font-medium text-[11px] w-10 text-left">' + p.progress + '%</span>' +
+                        '</div>' +
+                    '</td>' +
+                    '<td class="px-2 text-center font-mono" style="vertical-align: middle;">' + p.finish + '</td>' +
+                    '<td class="px-2 text-center font-mono" style="vertical-align: middle;">' + p.changeRate + '</td>' +
+                    '<td class="px-2 text-center font-bold ' + p.cls + '" style="vertical-align: middle;">' + p.safe + '</td>' +
+                '</tr>';
+            }).join('');
+        }
+    }
+
+    /* ---------- 3. 3-Tab 切换逻辑 ---------- */
+    window.switchPrjTab = function(type) {
+        var btnDev = document.getElementById('tabBtnPrjDev');
+        var btnEquip = document.getElementById('tabBtnPrjEquip');
+        var btnEng = document.getElementById('tabBtnPrjEng');
+
+        var cDev = document.getElementById('tabContentPrjDev');
+        var cEquip = document.getElementById('tabContentPrjEquip');
+        var cEng = document.getElementById('tabContentPrjEng');
+
+        var inactiveCls = 'px-3.5 py-1.5 rounded-md text-xs font-medium transition-all text-[#6B7A94] hover:text-[#1A2332]';
+        var activeCls = 'px-3.5 py-1.5 rounded-md text-xs font-bold transition-all bg-white text-[#0057B8] shadow-sm';
+
+        btnDev.className = (type === 'dev' ? activeCls : inactiveCls);
+        btnEquip.className = (type === 'equip' ? activeCls : inactiveCls);
+        btnEng.className = (type === 'eng' ? activeCls : inactiveCls);
+
+        cDev.classList.toggle('hidden', type !== 'dev');
+        cEquip.classList.toggle('hidden', type !== 'equip');
+        cEng.classList.toggle('hidden', type !== 'eng');
+    };
+
+    /* ---------- 4. 渲染 项目里程碑排期甘特图 (Gantt Timeline) ---------- */
+    function renderGantt() {
+        var el = document.getElementById('gantt-chart');
+        if (!el) return;
+        charts.gantt = charts.gantt || echarts.init(el);
+
+        var projects = [
+            'ASME 换热器认证',
+            '光伏节能并网',
+            '智能立库改造',
+            '3#真空钎焊炉',
+            'BP350机组研发',
+            '5# 2000T油压机',
+            'BL240板片研发',
+            '二期洁净车间'
+        ];
+
+        // 各项目起始月与持续月（相对于年初1月偏移）
+        var startMonth = [1, 2, 3, 4, 3, 2, 1, 3];
+        var duration =   [8, 7, 7, 6, 7, 8, 9, 9];
+        var completion = [90, 85, 75, 60, 70, 80, 78, 68];
+
+        charts.gantt.setOption({
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                borderColor: 'rgba(255,255,255,0.2)',
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                formatter: function (params) {
+                    var idx = params[0].dataIndex;
+                    return '<div class="font-bold mb-1 text-xs text-white">' + projects[idx] + '</div>' +
+                           '<div class="text-xs text-slate-300">工期周期：' + startMonth[idx] + '月 ~ ' + (startMonth[idx] + duration[idx] - 1) + '月</div>' +
+                           '<div class="text-xs text-emerald-300">当前进度达成：' + completion[idx] + '%</div>';
+                }
+            },
+            grid: { left: 110, right: 30, top: 20, bottom: 25 },
+            xAxis: {
+                type: 'value',
+                min: 1,
+                max: 12,
+                interval: 1,
+                axisLabel: {
+                    formatter: '{value}月',
+                    color: '#6B7A94',
+                    fontSize: 11
+                },
+                splitLine: { lineStyle: { color: 'rgba(26,35,50,0.06)', type: 'dashed' } }
+            },
+            yAxis: {
+                type: 'category',
+                data: projects,
+                axisLabel: { color: '#1A2332', fontSize: 11.5, fontWeight: 500 },
+                axisLine: { lineStyle: { color: 'rgba(26,35,50,0.12)' } },
+                axisTick: { show: false }
+            },
+            series: [
+                {
+                    name: '起始前置',
+                    type: 'bar',
+                    stack: 'timeline',
+                    itemStyle: { borderColor: 'transparent', color: 'transparent' },
+                    emphasis: { itemStyle: { color: 'transparent' } },
+                    data: startMonth
+                },
+                {
+                    name: '项目执行周期',
+                    type: 'bar',
+                    stack: 'timeline',
+                    barWidth: 14,
+                    itemStyle: {
+                        borderRadius: 4,
+                        color: new echarts.graphic.LinearGradient(0, 0, 1, 0, [
+                            { offset: 0, color: '#0057B8' },
+                            { offset: 1, color: '#00B2E3' }
+                        ])
+                    },
+                    label: {
+                        show: true,
+                        position: 'insideRight',
+                        formatter: function(params) {
+                            return completion[params.dataIndex] + '%';
+                        },
+                        fontSize: 10,
+                        color: '#FFFFFF',
+                        fontWeight: 'bold'
+                    },
+                    data: duration
+                }
+            ]
+        }, true);
+    }
+
+    /* ---------- 5. 渲染 资本性支出 S 曲线 (CAPEX S-Curve) ---------- */
+    function renderSCurve() {
+        var el = document.getElementById('scurve-chart');
+        if (!el) return;
+        charts.scurve = charts.scurve || echarts.init(el);
+
+        var months = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
+        var planCum = [320, 680, 1150, 1720, 2350, 3050, 3720, 4280, 4580, 4720, 4810, 4850];
+        var actCum =  [310, 650, 1080, 1590, 2180, 2760, 3120, null, null, null, null, null]; // 8月最新至3,120万
+
+        charts.scurve.setOption({
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                borderColor: 'rgba(255,255,255,0.2)',
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                formatter: function(params) {
+                    var html = '<div class="font-bold mb-1 text-xs text-white">' + params[0].axisValue + ' 资金投入</div>';
+                    params.forEach(function(p) {
+                        if (p.value !== null && p.value !== undefined) {
+                            html += '<div class="text-xs py-0.5 flex items-center justify-between gap-4">' +
+                                '<span style="color:' + p.color + '">● ' + p.seriesName + '</span>' +
+                                '<span class="font-mono font-bold text-white">' + fmt(p.value) + ' 万元</span>' +
+                                '</div>';
+                        }
+                    });
+                    return html;
+                }
+            },
+            legend: {
+                data: ['计划投资累计', '实际投资累计'],
+                top: 0,
+                right: 0,
+                itemWidth: 12,
+                itemHeight: 10,
+                textStyle: { fontSize: 11.5, color: '#4A5870', fontWeight: 500 }
+            },
+            grid: { left: 45, right: 15, top: 32, bottom: 25 },
+            xAxis: {
+                type: 'category',
+                data: months,
+                axisLabel: { color: '#6B7A94', fontSize: 11 },
+                axisLine: { lineStyle: { color: 'rgba(26,35,50,0.12)' } },
+                axisTick: { show: false }
+            },
+            yAxis: {
+                type: 'value',
+                splitLine: { lineStyle: { color: 'rgba(26,35,50,0.06)', type: 'dashed' } },
+                axisLabel: { color: '#6B7A94', fontSize: 11 }
+            },
+            series: [
+                {
+                    name: '计划投资累计',
+                    type: 'line',
+                    smooth: true,
+                    lineStyle: { color: '#8A99B5', width: 2, type: 'dashed' },
+                    itemStyle: { color: '#8A99B5' },
+                    symbol: 'none',
+                    data: planCum
+                },
+                {
+                    name: '实际投资累计',
+                    type: 'line',
+                    smooth: true,
+                    lineStyle: { color: '#0057B8', width: 3 },
+                    itemStyle: { color: '#0057B8', borderColor: '#FFFFFF', borderWidth: 2 },
+                    symbolSize: 6,
+                    areaStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: 'rgba(0, 87, 184, 0.25)' },
+                            { offset: 1, color: 'rgba(0, 87, 184, 0.00)' }
+                        ])
+                    },
+                    data: actCum
+                }
+            ]
+        }, true);
+    }
+
+    /* ---------- 6. 年月切换事件联动 ---------- */
+    function onPeriodChange() {
+        var p = BDLayout.getPeriod();
+        renderKPIs();
+        renderTables();
+        renderGantt();
+        renderSCurve();
+    }
+    window.onPeriodChange = onPeriodChange;
+
+    /* ---------- 7. 初始化生命周期 ---------- */
+    function initProjectCenter() {
+        BDLayout.render({ active: "project" });
+        renderKPIs();
+        renderTables();
+        renderGantt();
+        renderSCurve();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initProjectCenter);
+    } else {
+        initProjectCenter();
+    }
+
+    window.addEventListener('resize', function () {
+        Object.keys(charts).forEach(function (k) {
+            try { charts[k] && charts[k].resize && charts[k].resize(); } catch (e) {}
+        });
+    });
+    </script>
+</body>
+</html>

@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>实际数据 - 目标填报中心 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <style>
+    .custom-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
+    .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+    .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .custom-scroll::-webkit-scrollbar-track { background: #f8fafc; }
+    </style>
+</head>
+<body class="min-h-screen bg-[#F0F2F5]">
+    <div class="flex min-h-screen">
+
+        <!-- ============== 左侧导航栏 ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <!-- ============== 主内容区 ============== -->
+        <main class="flex-1 overflow-auto">
+            <!-- 顶栏 -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5 bg-white/95 backdrop-blur border-b border-[rgba(26,35,50,0.08)] shadow-sm">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">目标填报中心 · 实际数据工作台</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+
+                <!-- 模块：实际数据经营分析矩阵工作台 (参照目标填报格式设计) -->
+                <div class="card p-3.5 bg-white rounded-xl border border-[rgba(26,35,50,0.08)] shadow-sm">
+
+                    <!-- 标题栏 (含导出按钮) -->
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center gap-2">
+                            <div class="w-1 h-3.5 bg-gradient-to-b from-[#0057B8] to-[#5F8E68] rounded-full"></div>
+                            <span class="text-xs font-bold text-[#1A2332]">实际数据明细清单</span>
+                            <span class="text-[11px] text-[#6B7A94]">(业务员 × 行业 × 产品 × 实际经营指标)</span>
+                        </div>
+                        <div class="flex items-center gap-2">
+                            <button id="resetFiltersBtn" type="button" onclick="resetAllColumnFilters()" class="hidden px-2.5 py-1.5 rounded-lg border border-rose-200 bg-rose-50 hover:bg-rose-100 text-xs font-semibold text-rose-600 transition-all flex items-center gap-1 shadow-sm cursor-pointer" title="清除所有已设置的列筛选">
+                                <svg class="w-3.5 h-3.5 text-rose-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                                <span>重置筛选</span>
+                            </button>
+                            <button type="button" onclick="exportActualMatrixExcel()" class="px-3 py-1.5 rounded-lg border border-[#0057B8]/25 bg-white hover:bg-[#0057B8]/5 text-xs font-bold text-[#0057B8] transition-all flex items-center gap-1.5 shadow-sm cursor-pointer">
+                                <svg class="w-3.5 h-3.5 text-[#0057B8]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                导出实际数据 (Excel)
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 矩阵表格 (超薄单行表头 + 舒适宽屏排版 + 智能鼠标滚轮横向滑动 + 冻结左侧维度列) -->
+                    <div id="actualTableContainer" class="overflow-x-auto overflow-y-auto max-h-[620px] rounded-lg border border-slate-200 custom-scroll relative">
+                        <table class="text-xs text-left border-collapse" style="min-width: 1680px;" id="actualMatrixTable">
+                            <thead class="sticky top-0 z-30 bg-[#F4F7FA]">
+                                <tr class="bg-[#F4F7FA] text-[#6B7A94] text-[11px] font-bold border-b border-slate-200 whitespace-nowrap" style="height: 34px;">
+                                    <th class="px-2 sticky left-0 z-40 bg-[#F4F7FA] border-r border-slate-200/60" style="width: 80px; min-width: 80px;">
+                                        <div class="flex items-center justify-between gap-1">
+                                            <span>业务员</span>
+                                            <button type="button" onclick="openExcelFilter(event, 'rep', '业务员')" id="filterBtn_rep" class="p-0.5 rounded hover:bg-slate-200/70 text-slate-400 hover:text-[#0057B8] transition cursor-pointer" title="筛选业务员 (支持模糊搜索)">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="px-2 sticky left-[80px] z-40 bg-[#F4F7FA] border-r border-slate-200/60" style="width: 95px; min-width: 95px;">
+                                        <div class="flex items-center justify-between gap-1">
+                                            <span>应用行业</span>
+                                            <button type="button" onclick="openExcelFilter(event, 'industry', '应用行业')" id="filterBtn_industry" class="p-0.5 rounded hover:bg-slate-200/70 text-slate-400 hover:text-[#0057B8] transition cursor-pointer" title="筛选应用行业 (支持模糊搜索)">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="px-2 sticky left-[175px] z-40 bg-[#F4F7FA] border-r border-slate-200/60" style="width: 70px; min-width: 70px;">
+                                        <div class="flex items-center justify-between gap-1">
+                                            <span>产品</span>
+                                            <button type="button" onclick="openExcelFilter(event, 'product', '产品')" id="filterBtn_product" class="p-0.5 rounded hover:bg-slate-200/70 text-slate-400 hover:text-[#0057B8] transition cursor-pointer" title="筛选产品 (钎焊 / 可拆)">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="px-1.5 text-center sticky left-[245px] z-40 bg-[#F4F7FA] border-r border-slate-200/60" style="width: 58px; min-width: 58px;">
+                                        <div class="flex items-center justify-between gap-1">
+                                            <span>区域</span>
+                                            <button type="button" onclick="openExcelFilter(event, 'region', '区域')" id="filterBtn_region" class="p-0.5 rounded hover:bg-slate-200/70 text-slate-400 hover:text-[#0057B8] transition cursor-pointer" title="筛选区域">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="px-2.5 text-left text-[#6B7A94] sticky left-[303px] z-40 bg-[#F4F7FA] border-r-2 border-slate-300 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.06)]" style="width: 155px; min-width: 155px;">
+                                        <div class="flex items-center justify-between gap-1">
+                                            <span>实际经营指标</span>
+                                            <button type="button" onclick="openExcelFilter(event, 'indicator', '实际经营指标')" id="filterBtn_indicator" class="p-0.5 rounded hover:bg-slate-200/70 text-slate-400 hover:text-[#0057B8] transition cursor-pointer" title="筛选指标 (支持销售、毛利、达成率等模糊搜索)">
+                                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                                            </button>
+                                        </div>
+                                    </th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">1月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">2月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">3月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">4月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">5月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">6月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">7月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">8月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">9月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">10月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">11月</th>
+                                    <th class="px-2 text-right font-mono" style="width: 75px; min-width: 75px;">12月</th>
+                                    <th class="px-3 text-right" style="width: 110px; min-width: 110px;">全年汇总 / 时点值</th>
+                                    <th class="px-2.5 text-left text-slate-400" style="width: 130px; min-width: 130px;">差异分析/备注</th>
+                                </tr>
+                            </thead>
+                            <tbody id="actualMatrixTbody" class="divide-y divide-slate-100 text-[#1A2332] text-xs"></tbody>
+                        </table>
+                    </div>
+
+                    <!-- 实际数据分页栏 -->
+                    <div id="actualPaginationBar" class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-[#6B7A94]"></div>
+
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- 成功提示 Toast -->
+    <div id="toastSuccess" class="fixed top-5 right-5 z-50 transform translate-y-[-100px] opacity-0 transition-all duration-300 bg-[#0057B8] text-white px-4 py-2.5 rounded-lg shadow-lg flex items-center gap-2 text-xs font-bold">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
+        <span id="toastMsg">操作成功！</span>
+    </div>
+
+
+    <!-- ==================== Excel 风格表头筛选弹窗 (支持模糊匹配 & 多选) ==================== -->
+    <div id="excelFilterPopover" class="fixed z-[100] hidden bg-white rounded-xl shadow-2xl border border-slate-200 w-64 text-xs text-[#1A2332] p-3 space-y-2.5 select-none animate-in fade-in zoom-in-95 duration-100">
+        <div class="flex items-center justify-between pb-1.5 border-b border-slate-100">
+            <span class="font-bold text-[#1A2332] flex items-center gap-1.5">
+                <svg class="w-3.5 h-3.5 text-[#0057B8]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+                <span id="excelFilterColTitle" class="text-xs">列筛选</span>
+            </span>
+            <button type="button" onclick="closeExcelFilterPopover()" class="text-slate-400 hover:text-slate-600 p-0.5 rounded transition">✕</button>
+        </div>
+
+        <!-- 搜索输入框 (支持模糊匹配) -->
+        <div class="relative">
+            <input type="text" id="excelFilterSearchInput" placeholder="输入关键字模糊搜索..." oninput="onExcelFilterSearchChange()" class="w-full pl-7 pr-2 py-1 text-xs border border-slate-200 rounded-md focus:outline-none focus:border-[#0057B8] focus:ring-1 focus:ring-[#0057B8] bg-slate-50/50">
+            <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+        </div>
+
+        <!-- 全选与数量提示 -->
+        <div class="flex items-center justify-between px-1 text-[11px] text-[#6B7A94] border-b border-slate-50 pb-1">
+            <label class="flex items-center gap-1.5 cursor-pointer hover:text-[#1A2332]">
+                <input type="checkbox" id="excelFilterSelectAll" onchange="toggleExcelFilterSelectAll(this.checked)" class="rounded text-[#0057B8] focus:ring-0">
+                <span class="font-medium">(全选)</span>
+            </label>
+            <span id="excelFilterCountBadge" class="text-[10px] text-slate-400">0 项</span>
+        </div>
+
+        <!-- 勾选列表 -->
+        <div id="excelFilterItemsList" class="max-h-48 overflow-y-auto space-y-0.5 pr-1 custom-scroll text-[11.5px]"></div>
+
+        <!-- 底部确定与清除按钮 -->
+        <div class="flex items-center justify-between pt-2 border-t border-slate-100">
+            <button type="button" onclick="clearCurrentColumnFilter()" class="text-[11px] text-slate-500 hover:text-rose-600 transition cursor-pointer">清除此列筛选</button>
+            <div class="flex items-center gap-1.5">
+                <button type="button" onclick="closeExcelFilterPopover()" class="px-2 py-1 rounded text-[11px] text-[#6B7A94] hover:bg-slate-100 cursor-pointer">取消</button>
+                <button type="button" onclick="applyExcelFilterFromPopover()" class="px-3 py-1 rounded bg-[#0057B8] hover:bg-[#004494] text-white font-bold text-[11px] shadow-sm cursor-pointer">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="assets/js/sales-target-store.js"></script>
+    <script src="assets/js/layout.js"></script>
+    <script>
+    function applyFilters() {
+        renderActualMatrix();
+    }
+
+    var actualPage = 1, actualPageSize = 15;
+    var cachedActualRows = [];
+
+    // 存储 5 大列的当前激活筛选条件 (null 表示不过滤/全选；数组表示勾选的具体值列表)
+    var activeColumnFilters = {
+        rep: null,
+        industry: null,
+        product: null,
+        region: null,
+        indicator: null
+    };
+
+    var currentFilterCol = null;
+    var currentFilterAllValues = [];
+    var currentFilterSelectedMap = {};
+
+    function getFilteredMatrixRows() {
+        var rawRows = BaodeTargetStore.getActualMatrixRows({ group: 'all' });
+        return rawRows.filter(function(r) {
+            for (var col in activeColumnFilters) {
+                var selectedVals = activeColumnFilters[col];
+                if (selectedVals && Array.isArray(selectedVals)) {
+                    var cellVal = r[col] || (col === 'region' ? '华东' : '');
+                    if (selectedVals.indexOf(cellVal) === -1) {
+                        return false;
+                    }
+                }
+            }
+            return true;
+        });
+    }
+
+    function renderActualMatrix() {
+        cachedActualRows = getFilteredMatrixRows();
+        var total = cachedActualRows.length;
+        var totalPages = actualPageSize === -1 ? 1 : Math.ceil(total / actualPageSize);
+        if (actualPage > totalPages) actualPage = totalPages || 1;
+        if (actualPage < 1) actualPage = 1;
+
+        var startIdx = actualPageSize === -1 ? 0 : (actualPage - 1) * actualPageSize;
+        var endIdx = actualPageSize === -1 ? total : Math.min(startIdx + actualPageSize, total);
+        var pageRows = cachedActualRows.slice(startIdx, endIdx);
+
+        var html = pageRows.map(function (r, idx) {
+            var indName = r.indicator || '';
+            var isRate = (r.type === 'rate' || r.type === 'percent') || indName.indexOf('率') !== -1 || indName.indexOf('%') !== -1;
+
+            // 格式化月份数据：与财务指标保持一致，常规字体颜色 text-[#1A2332]，不加红绿颜色，不加+-符号
+            var monthsTds = r.months.map(function (mVal) {
+                var formatted = isRate ? (mVal + '%') : (typeof mVal === 'number' ? mVal.toLocaleString() : mVal);
+                var valColor = (mVal !== undefined && mVal !== null && mVal !== '' && mVal !== 0) ? 'text-[#1A2332]' : 'text-slate-400';
+                return '<td class="px-1.5 py-2 text-right font-mono text-xs ' + valColor + '">' + formatted + '</td>';
+            }).join('');
+
+            var annualFormatted = isRate ? (r.annual + '%') : (typeof r.annual === 'number' ? r.annual.toLocaleString() : r.annual);
+
+            return '<tr class="hover:bg-slate-50/80 transition-colors group" style="height: 36px;">' +
+                '<td class="px-2 py-2 font-medium text-[#1A2332] text-xs whitespace-nowrap sticky left-0 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100">' + r.rep + '</td>' +
+                '<td class="px-2 py-2 text-slate-600 text-xs whitespace-nowrap sticky left-[80px] z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100">' + r.industry + '</td>' +
+                '<td class="px-2 py-2 text-slate-600 text-xs whitespace-nowrap sticky left-[175px] z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100">' + r.product + '</td>' +
+                '<td class="px-1.5 py-2 text-center text-slate-600 text-xs whitespace-nowrap sticky left-[245px] z-10 bg-white group-hover:bg-slate-50 border-r border-slate-100">' + (r.region || '华东') + '</td>' +
+                '<td class="px-2.5 py-2 text-[#1A2332] font-medium text-xs whitespace-nowrap sticky left-[303px] z-10 bg-white group-hover:bg-slate-50 border-r-2 border-slate-300 shadow-[4px_0_6px_-2px_rgba(0,0,0,0.06)]">' + indName + '</td>' +
+                monthsTds +
+                '<td class="px-3 py-2 text-right font-mono text-[#1A2332] text-xs bg-slate-50/60 whitespace-nowrap">' + annualFormatted + '</td>' +
+                '<td class="px-2.5 py-2 text-left text-slate-500 text-[11px] truncate" title="' + (r.remark || '') + '">' + (r.remark || '-') + '</td>' +
+            '</tr>';
+        }).join('');
+
+        document.getElementById('actualMatrixTbody').innerHTML = html;
+        renderActualPaginationBar(total, actualPage, actualPageSize, totalPages);
+    }
+
+    function setActualPage(p) {
+        actualPage = p;
+        renderActualMatrix();
+    }
+
+    function setActualPageSize(sz) {
+        actualPageSize = parseInt(sz);
+        actualPage = 1;
+        renderActualMatrix();
+    }
+
+    function renderActualPaginationBar(total, page, pageSize, totalPages) {
+        var el = document.getElementById('actualPaginationBar');
+        if (!el) return;
+
+        var startItem = total === 0 ? 0 : (pageSize === -1 ? 1 : (page - 1) * pageSize + 1);
+        var endItem = pageSize === -1 ? total : Math.min(page * pageSize, total);
+
+        var options = [15, 30, 45, 90, -1].map(function(s){
+            var label = s === -1 ? '全部' : (s + ' 条/页');
+            return '<option value="' + s + '" ' + (pageSize === s ? 'selected' : '') + '>' + label + '</option>';
+        }).join('');
+
+        var prevDisabled = page <= 1 ? 'disabled class="opacity-40 cursor-not-allowed px-2.5 py-1 border border-slate-200 rounded bg-slate-50 text-xs"' : 'class="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 transition cursor-pointer text-[#1A2332] text-xs" onclick="setActualPage(' + (page - 1) + ')"';
+        var nextDisabled = page >= totalPages ? 'disabled class="opacity-40 cursor-not-allowed px-2.5 py-1 border border-slate-200 rounded bg-slate-50 text-xs"' : 'class="px-2.5 py-1 border border-slate-200 rounded hover:bg-slate-50 transition cursor-pointer text-[#1A2332] text-xs" onclick="setActualPage(' + (page + 1) + ')"';
+
+        var pageBtns = '';
+        for (var i = 1; i <= totalPages; i++) {
+            if (i === page) {
+                pageBtns += '<button class="px-2.5 py-1 bg-[#0057B8] text-white font-bold rounded shadow-sm text-xs">' + i + '</button>';
+            } else if (i === 1 || i === totalPages || (i >= page - 2 && i <= page + 2)) {
+                pageBtns += '<button onclick="setActualPage(' + i + ')" class="px-2.5 py-1 border border-slate-200 hover:bg-slate-100 rounded text-xs text-[#1A2332] transition">' + i + '</button>';
+            } else if (i === page - 3 || i === page + 3) {
+                pageBtns += '<span class="px-1 text-slate-400">...</span>';
+            }
+        }
+
+        el.innerHTML = '<div class="flex items-center gap-3">' +
+            '<span>共 <b class="text-[#1A2332] font-mono">' + total + '</b> 条指标 (显示 ' + startItem + '-' + endItem + ')</span>' +
+            '<select onchange="setActualPageSize(this.value)" class="border border-slate-200 rounded px-2 py-1 bg-white text-xs text-[#1A2332] outline-none">' + options + '</select>' +
+        '</div>' +
+        '<div class="flex items-center gap-1.5">' +
+            '<button ' + prevDisabled + '>上一页</button>' +
+            '<div class="flex items-center gap-1 mx-1">' + pageBtns + '</div>' +
+            '<button ' + nextDisabled + '>下一页</button>' +
+            '<span class="ml-2 text-slate-400">第 ' + page + ' / ' + totalPages + ' 页</span>' +
+        '</div>';
+    }
+
+
+    /* ==================== Excel 风格表头筛选弹窗引擎 ==================== */
+    function openExcelFilter(event, colKey, colTitle) {
+        event.stopPropagation();
+        currentFilterCol = colKey;
+        document.getElementById('excelFilterColTitle').innerText = '筛选: ' + colTitle;
+
+        // 获取该列所有可能的不重复唯一值（从原始数据池获取）
+        var allRows = BaodeTargetStore.getActualMatrixRows({ group: 'all' });
+        var valSet = {};
+        allRows.forEach(function(r) {
+            var val = r[colKey] || (colKey === 'region' ? '华东' : '');
+            if (val) valSet[val] = true;
+        });
+        currentFilterAllValues = Object.keys(valSet).sort();
+
+        // 初始化勾选状态：如果已有激活过滤，则回显；否则默认全选
+        currentFilterSelectedMap = {};
+        var existingFilter = activeColumnFilters[colKey];
+        currentFilterAllValues.forEach(function(v) {
+            if (existingFilter && Array.isArray(existingFilter)) {
+                currentFilterSelectedMap[v] = (existingFilter.indexOf(v) !== -1);
+            } else {
+                currentFilterSelectedMap[v] = true;
+            }
+        });
+
+        // 清空搜索框
+        document.getElementById('excelFilterSearchInput').value = '';
+
+        // 渲染勾选列表
+        renderExcelFilterItems('');
+        initExcelFilterListDelegation();
+
+        // 定位浮窗
+        var btn = event.currentTarget;
+        var rect = btn.getBoundingClientRect();
+        var pop = document.getElementById('excelFilterPopover');
+        pop.classList.remove('hidden');
+
+        var popWidth = 256;
+        var left = rect.left;
+        if (left + popWidth > window.innerWidth - 15) {
+            left = window.innerWidth - popWidth - 15;
+        }
+        var top = rect.bottom + 6;
+        pop.style.top = top + 'px';
+        pop.style.left = left + 'px';
+
+        // 聚焦搜索框
+        setTimeout(function() {
+            var inputEl = document.getElementById('excelFilterSearchInput');
+            if (inputEl && typeof inputEl.focus === 'function') inputEl.focus();
+        }, 50);
+    }
+
+    function onExcelFilterSearchChange() {
+        var kw = document.getElementById('excelFilterSearchInput').value.trim();
+        renderExcelFilterItems(kw);
+    }
+
+    function renderExcelFilterItems(kw) {
+        var listEl = document.getElementById('excelFilterItemsList');
+        var filteredVals = currentFilterAllValues.filter(function(v) {
+            if (!kw) return true;
+            return v.toLowerCase().indexOf(kw.toLowerCase()) !== -1;
+        });
+
+        // 全选按钮状态
+        var allChecked = filteredVals.length > 0 && filteredVals.every(function(v) { return !!currentFilterSelectedMap[v]; });
+        document.getElementById('excelFilterSelectAll').checked = allChecked;
+        document.getElementById('excelFilterCountBadge').innerText = filteredVals.length + ' 项';
+
+        var html = filteredVals.map(function(v) {
+            var isChecked = !!currentFilterSelectedMap[v];
+                        return '<label class="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-slate-100 cursor-pointer transition">' +
+                '<input type="checkbox" data-val="' + encodeURIComponent(v) + '" ' + (isChecked ? 'checked' : '') + ' class="excel-filter-cb rounded text-[#0057B8] focus:ring-0">' +
+                '<span class="truncate">' + v + '</span>' +
+            '</label>';
+        }).join('');
+
+        if (filteredVals.length === 0) {
+            html = '<div class="py-4 text-center text-slate-400 text-[11px]">无匹配项</div>';
+        }
+
+        listEl.innerHTML = html;
+    }
+
+    function toggleExcelFilterSelectAll(checked) {
+        var kw = document.getElementById('excelFilterSearchInput').value.trim();
+        var filteredVals = currentFilterAllValues.filter(function(v) {
+            if (!kw) return true;
+            return v.toLowerCase().indexOf(kw.toLowerCase()) !== -1;
+        });
+        filteredVals.forEach(function(v) {
+            currentFilterSelectedMap[v] = checked;
+        });
+        renderExcelFilterItems(kw);
+    }
+
+    function initExcelFilterListDelegation() {
+        var listEl = document.getElementById('excelFilterItemsList');
+        if (listEl && !listEl._bound) {
+            listEl._bound = true;
+            listEl.addEventListener('change', function(e) {
+                if (e.target && e.target.classList.contains('excel-filter-cb')) {
+                    var val = decodeURIComponent(e.target.getAttribute('data-val'));
+                    currentFilterSelectedMap[val] = e.target.checked;
+                    var kw = document.getElementById('excelFilterSearchInput').value.trim();
+                    var filteredVals = currentFilterAllValues.filter(function(v) {
+                        if (!kw) return true;
+                        return v.toLowerCase().indexOf(kw.toLowerCase()) !== -1;
+                    });
+                    var allChecked = filteredVals.length > 0 && filteredVals.every(function(v) { return !!currentFilterSelectedMap[v]; });
+                    document.getElementById('excelFilterSelectAll').checked = allChecked;
+                }
+            });
+        }
+    }
+
+    function applyExcelFilterFromPopover() {
+        var selected = [];
+        currentFilterAllValues.forEach(function(v) {
+            if (currentFilterSelectedMap[v]) selected.push(v);
+        });
+
+        // 如果全部选中，则视为无过滤 (null)
+        if (selected.length === currentFilterAllValues.length) {
+            activeColumnFilters[currentFilterCol] = null;
+        } else {
+            activeColumnFilters[currentFilterCol] = selected;
+        }
+
+        updateFilterBtnVisuals();
+        closeExcelFilterPopover();
+        actualPage = 1;
+        renderActualMatrix();
+    }
+
+    function clearCurrentColumnFilter() {
+        activeColumnFilters[currentFilterCol] = null;
+        updateFilterBtnVisuals();
+        closeExcelFilterPopover();
+        actualPage = 1;
+        renderActualMatrix();
+    }
+
+    function resetAllColumnFilters() {
+        activeColumnFilters = { rep: null, industry: null, product: null, region: null, indicator: null };
+        updateFilterBtnVisuals();
+        closeExcelFilterPopover();
+        actualPage = 1;
+        renderActualMatrix();
+        showToast('已重置所有列筛选条件！');
+    }
+
+    function closeExcelFilterPopover() {
+        var pop = document.getElementById('excelFilterPopover');
+        if (pop) pop.classList.add('hidden');
+    }
+
+    function updateFilterBtnVisuals() {
+        var cols = ['rep', 'industry', 'product', 'region', 'indicator'];
+        var hasAnyFilter = false;
+        cols.forEach(function(c) {
+            var btn = document.getElementById('filterBtn_' + c);
+            if (!btn) return;
+            var isActive = activeColumnFilters[c] !== null;
+            if (isActive) {
+                hasAnyFilter = true;
+                btn.className = 'p-0.5 rounded bg-[#0057B8] text-white shadow-sm ring-1 ring-[#0057B8] cursor-pointer';
+                btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>';
+            } else {
+                btn.className = 'p-0.5 rounded hover:bg-slate-200/70 text-slate-400 hover:text-[#0057B8] transition cursor-pointer';
+                btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>';
+            }
+        });
+
+        var resetBtn = document.getElementById('resetFiltersBtn');
+        if (resetBtn) {
+            resetBtn.classList.toggle('hidden', !hasAnyFilter);
+        }
+    }
+
+    // 点击浮窗外部自动关闭
+    document.addEventListener('click', function(e) {
+        var pop = document.getElementById('excelFilterPopover');
+        if (pop && !pop.classList.contains('hidden')) {
+            if (!pop.contains(e.target) && !e.target.closest('button[id^="filterBtn_"]')) {
+                closeExcelFilterPopover();
+            }
+        }
+    });
+
+    /* ---------- 下载空白实际模板 ---------- */
+    function downloadBlankActualTemplate() {
+        try {
+            var header = ["业务员", "应用行业", "产品(钎焊/可拆)", "区域(预留)", "填报指标*", "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月", "全年汇总", "差异分析/备注"];
+            var aoa = [header];
+
+            for (var i = 1; i <= 50; i++) {
+                aoa.push(['', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '', '']);
+            }
+
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [
+                { wch: 10 }, { wch: 12 }, { wch: 15 }, { wch: 10 }, { wch: 18 },
+                { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
+                { wch: 14 }, { wch: 22 }
+            ];
+
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "实际数据填报");
+            XLSX.writeFile(wb, "宝得经营平台_实际数据空白填报模板.xlsx");
+            showToast("已下载标准实际数据空白填报模板！");
+        } catch (err) {
+            alert("下载失败：" + err.message);
+        }
+    }
+
+    /* ---------- 导出当前实际经营矩阵 Excel ---------- */
+    function exportActualMatrixExcel() {
+        try {
+            var rows = (cachedActualRows && cachedActualRows.length > 0)
+                ? cachedActualRows
+                : BaodeTargetStore.getActualMatrixRows({ group: 'all' });
+
+            var header = ["业务员", "应用行业", "产品", "区域", "实际经营指标", "1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月", "全年汇总 / 时点值", "差异分析/备注"];
+            var aoa = [header];
+
+            rows.forEach(function (r) {
+                var rowData = [
+                    r.rep,
+                    r.industry,
+                    r.product,
+                    r.region || '华东',
+                    r.indicator
+                ];
+                r.months.forEach(function (mVal) {
+                    rowData.push(mVal);
+                });
+                rowData.push(r.annual);
+                rowData.push(r.remark || '');
+                aoa.push(rowData);
+            });
+
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [
+                { wch: 10 }, { wch: 12 }, { wch: 10 }, { wch: 8 }, { wch: 20 },
+                { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
+                { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 8 },
+                { wch: 16 }, { wch: 20 }
+            ];
+
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "实际数据明细");
+            XLSX.writeFile(wb, "宝得经营平台_实际数据明细清单.xlsx");
+            showToast("已成功导出实际数据明细清单 Excel！");
+        } catch (err) {
+            alert("导出失败：" + err.message);
+        }
+    }
+
+    function showToast(msg) {
+        var toast = document.getElementById('toastSuccess');
+        var msgEl = document.getElementById('toastMsg');
+        if (msgEl) msgEl.innerText = msg;
+        if (toast) {
+            toast.classList.remove('translate-y-[-100px]', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+            setTimeout(function() {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-[-100px]', 'opacity-0');
+            }, 3000);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        BDLayout.render({ active: "actual-entry", title: "实际数据" });
+        renderActualMatrix();
+
+        // 强力绑定鼠标滚轮横向平滑滑动 (直接在表格容器上平滑推移)
+        var box = document.getElementById('actualTableContainer');
+        if (box) {
+            box.addEventListener('wheel', function(e) {
+                if (e.deltaY !== 0 && !e.shiftKey) {
+                    box.scrollLeft += e.deltaY * 1.5;
+                    e.preventDefault();
+                }
+            }, { passive: false });
+        }
+    });
+    </script>
+</body>
+</html>

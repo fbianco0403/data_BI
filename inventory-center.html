@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>库存管理分析 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        /* 台账表格鼠标滚轮滚动区域纤细滚动条 */
+        .table-scroll-container::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: rgba(26, 35, 50, 0.04);
+            border-radius: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: rgba(0, 87, 184, 0.35);
+            border-radius: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 87, 184, 0.65);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <main class="flex-1 overflow-auto">
+            <!-- 顶部导航条 (与企业经营驾驶舱 100% 相同) -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5">
+                <div class="flex items-center justify-between">
+                    <!-- 左侧：页面标题 -->
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">生产分析中心 · 库存管理</span>
+                    </div>
+
+                    <!-- 右侧：年月选择胶囊 (与驾驶舱 100% 保持一致：动态近三年与未来月份拦截) -->
+                    <div class="flex items-center">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <!-- 年份选择触发器 -->
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 年份下拉菜单 (动态渲染近三年) -->
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+
+                                <!-- 月份选择触发器 -->
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 月份下拉菜单 (动态禁用未来月份) -->
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                                        <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                            <span>选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+                <!-- 模块 1：库存管理核心运营总览（与企业经营驾驶舱 100% 对齐纯净两行样式） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">库存管理分析总览</h3>
+                        </div>
+                        <div id="kpi-cards" class="sales-overview-grid mb-1"></div>
+                    </div>
+                </div>
+
+                <!-- 模块 2：库存组成分析（环形图）与库龄分布结构 -->
+                <div class="grid grid-cols-12 gap-3.5">
+                    <!-- 左侧：成品库龄分析（按库龄区间分布） -->
+                    <div class="col-span-12 lg:col-span-6 card">
+                        <div class="card-inner">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="section-title">成品库龄分析</h3>
+                                <span class="text-xs text-[#0057B8] font-bold">成品库存 1,890 万元</span>
+                            </div>
+                            <div id="invCompositionCenterChart" class="chart-box" style="height: 275px; min-height: 275px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：成品库存客户占比（展示客户维度） -->
+                    <div class="col-span-12 lg:col-span-6 card">
+                        <div class="card-inner">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="section-title">成品库存客户占比</h3>
+                                <span class="text-xs text-[#5F8E68] font-semibold">TOP6 客户集中度 74.7%</span>
+                            </div>
+                            <div id="invCustShareChart" class="chart-box" style="height: 275px; min-height: 275px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 3：超期库存客户排名 Top 10 与处置管控 -->
+                <div class="grid grid-cols-12 gap-3.5">
+                    <!-- 左侧：超期库存客户排名 Top 10（横向柱状图 - 默认显示5行，支持滑轮滚动） -->
+                    <div class="col-span-12 lg:col-span-7 card">
+                        <div class="card-inner">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <h3 class="section-title">超期库存客户排名 Top 10</h3>
+                                <span class="text-xs text-[#E87722] font-semibold">超期总金额 738 万元</span>
+                            </div>
+                            <div id="overdueCustomerRankChart" class="chart-box" style="height: 180px; min-height: 180px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 右侧：超期库存分析 (30天库存 / 60天库存 / 90天库存) -->
+                    <div class="col-span-12 lg:col-span-5 card">
+                        <div class="card-inner">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <h3 class="section-title">超期库存分析</h3>
+                                <span class="text-xs text-[#0057B8] font-semibold">超期总金额 738 万元</span>
+                            </div>
+                            <div id="overdueReasonChart" class="chart-box" style="height: 125px; min-height: 125px;"></div>
+                            <!-- 底部汇总卡：30天库存、60天库存、90天库存 -->
+                            <div class="grid grid-cols-3 gap-2 mt-1.5 pt-1.5 border-t border-slate-100">
+                                <div class="text-center p-1 rounded bg-slate-50">
+                                    <div class="text-[10px] text-[#6B7A94]">30天库存</div>
+                                    <div class="text-xs font-bold text-[#0057B8]">385万</div>
+                                </div>
+                                <div class="text-center p-1 rounded bg-slate-50">
+                                    <div class="text-[10px] text-[#6B7A94]">60天库存</div>
+                                    <div class="text-xs font-bold text-[#F39C12]">215万</div>
+                                </div>
+                                <div class="text-center p-1 rounded bg-slate-50">
+                                    <div class="text-[10px] text-[#6B7A94]">90天库存</div>
+                                    <div class="text-xs font-bold text-[#E87722]">138万</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 4：重点物料高库龄呆滞风险预警清单 -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-3">
+                            <div>
+                                <h3 class="section-title">高库龄与呆滞物料风险预警台账</h3>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-500/10 text-amber-600 border border-amber-500/20">
+                                    严重呆滞 (>180天) 215万
+                                </span>
+                                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/10 text-blue-600 border border-blue-500/20">
+                                    一般超期 (90~180天) 523万
+                                </span>
+                                <button onclick="exportMaterialLedgerExcel()" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border border-[rgba(0,87,184,0.3)] bg-[#0057B8]/10 hover:bg-[#0057B8]/20 text-xs font-semibold text-[#0057B8] transition-all cursor-pointer shadow-xs active:scale-95" title="导出台账至标准 Excel (.xlsx)">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    <span>导出 Excel</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <div class="overflow-y-auto overflow-x-auto table-scroll-container rounded border border-[rgba(26,35,50,0.06)] bg-white/40" style="height: 208px; max-height: 208px;">
+                            <table class="w-full text-xs text-left">
+                                <thead class="sticky top-0 z-10 bg-[#EEF3F8] shadow-sm">
+                                    <tr class="bg-[rgba(0,87,184,0.06)] text-[#6B7A94] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 32px;">
+                                        <th class="py-2 px-3">物料编码</th>
+                                        <th class="py-2 px-3">品名规格</th>
+                                        <th class="py-2 px-3">物料类别</th>
+                                        <th class="py-2 px-3 text-right">在库数量</th>
+                                        <th class="py-2 px-3 text-right">单位成本 (元)</th>
+                                        <th class="py-2 px-3 text-right">库存金额 (万元)</th>
+                                        <th class="py-2 px-3">入库日期</th>
+                                        <th class="py-2 px-3 text-right">库龄天数</th>
+                                        <th class="py-2 px-3">风险等级</th>
+                                        <th class="py-2 px-3">责任人</th>
+                                        <th class="py-2 px-3">拟处置方案</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="overdueMaterialTbody" class="divide-y divide-[rgba(26,35,50,0.05)]">
+                                    <!-- 动态渲染 -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    var charts = {};
+
+    var KPIS = [
+        { label: '库存总金额', id: 'PLN-005~010', value: '9,000', unit: '万', valCls: 'val-blue', formula: '原材料+自制半成品+成品总额' },
+        { label: '原材料库存', id: 'PLN-005', value: '4,680', unit: '万', valCls: 'val-blue', formula: '原材料+委托加工+周转材料' },
+        { label: '自制半成品', id: 'PLN-006', value: '2,430', unit: '万', valCls: 'val-up', formula: '自制半成品账面金额' },
+        { label: '成品库存', id: 'PLN-010', value: '1,890', unit: '万', valCls: 'val-good', formula: '合格入库成品库存金额' },
+        { label: '待包装库存', id: 'PLN-018', value: '428', unit: '万', valCls: 'val-blue', formula: '已完工待包装入库成品金额' },
+        { label: '未逾期库存', id: 'PLN-009', value: '1,152', unit: '万', valCls: 'val-good', formula: '成品入库在规定期限内未超期金额' },
+        { label: '成品超期库存', id: 'PLN-010', value: '738', unit: '万', valCls: 'val-orange', formula: '成品入库超期金额' },
+        { label: '原材料呆滞库存金额', id: 'PLN-008', value: '215', unit: '万', valCls: 'val-orange', formula: '库龄超过180天原材料呆滞物料金额' },
+        { label: '在库库存周转天数', id: 'PLN-007', value: '62', unit: '天', valCls: 'val-good', formula: '在库库存周转一次所需的天数' },
+        { label: '库存周转天数', id: 'PLN-007B', value: '78', unit: '天', valCls: 'val-good', formula: '全口径库存周转一次所需的天数' }
+    ];
+
+    var MATERIAL_LIST = [
+        { no: 'MAT-CU-001', name: '无氧铜箔卷料 0.08×320mm', cat: '原材料', qty: '12,500 kg', cost: '78.5', amt: '98.1', inDate: '2026-02-15', age: 201, risk: '严重呆滞', owner: '王丽华', plan: '大宗铜调剂回炉' },
+        { no: 'MAT-SS-004', name: 'SUS316L 不锈钢精密带钢 0.4mm', cat: '原材料', qty: '8,200 kg', cost: '38.0', amt: '31.2', inDate: '2026-03-20', age: 167, risk: '超期关注', owner: '赵德全', plan: '板片车间优先代用' },
+        { no: 'SEMI-PLT-02', name: 'B35 高效人字形波纹板片', cat: '半成品', qty: '3,600 片', cost: '145.0', amt: '52.2', inDate: '2026-04-10', age: 146, risk: '超期关注', owner: '陈铁柱', plan: '开利订单转批组装' },
+        { no: 'SEMI-BRA-05', name: 'BP25 钎焊换热芯体 (耐高压)', cat: '半成品', qty: '480 台', cost: '720.0', amt: '34.6', inDate: '2026-03-05', age: 182, risk: '严重呆滞', owner: '李志强', plan: '改制非标特批降价' },
+        { no: 'FIN-B050-01', name: '全不锈钢钎焊板换 B050-50D', cat: '产成品', qty: '120 台', cost: '1,300.0', amt: '15.6', inDate: '2026-04-18', age: 138, risk: '超期关注', owner: '海尔专员', plan: '客户协商分批提货' },
+        { no: 'FIN-C100-08', name: '可拆式板式换热机组 BR02', cat: '产成品', qty: '8 套', cost: '28,500.0', amt: '22.8', inDate: '2026-02-28', age: 187, risk: '严重呆滞', owner: '海信专员', plan: '催促工程现场验收' },
+        { no: 'MAT-BRZ-09', name: '高温镍基焊膏 500g/罐', cat: '原材料', qty: '160 罐', cost: '620.0', amt: '9.9', inDate: '2026-05-12', age: 114, risk: '超期关注', owner: '周敏', plan: '工艺保质期内领用' },
+        { no: 'SEMI-FLG-03', name: 'DN100 对焊法兰组装件', cat: '半成品', qty: '850 件', cost: '98.0', amt: '8.3', inDate: '2026-05-02', age: 124, risk: '超期关注', owner: '张海波', plan: '近期常规订单消化' },
+        { no: 'MAT-AL-012', name: '高纯铝箔翅片卷带 0.12mm', cat: '原材料', qty: '5,400 kg', cost: '24.5', amt: '13.2', inDate: '2026-04-25', age: 131, risk: '超期关注', owner: '赵德全', plan: '新换热器试制消耗' },
+        { no: 'SEMI-GSK-07', name: 'EPDM耐高温三元乙丙密封垫片', cat: '半成品', qty: '2,200 条', cost: '18.0', amt: '3.9', inDate: '2026-03-12', age: 175, risk: '超期关注', owner: '陈铁柱', plan: '可拆机组常规装配' },
+        { no: 'FIN-A030-03', name: '暖通商用钎焊板换 A030-30', cat: '产成品', qty: '65 台', cost: '880.0', amt: '5.7', inDate: '2026-05-18', age: 108, risk: '超期关注', owner: '美的专员', plan: '备货订单近期发运' },
+        { no: 'MAT-SS-008', name: '304不锈钢压板紧固螺栓 M24', cat: '原材料', qty: '1,500 套', cost: '42.0', amt: '6.3', inDate: '2026-04-02', age: 154, risk: '超期关注', owner: '周敏', plan: '重型机组优先领用' }
+    ];
+
+    function renderKPIs() {
+        var el = document.getElementById('kpi-cards');
+        if (!el) return;
+        el.innerHTML = KPIS.map(function (k) {
+            var labelStyle = k.label.length > 7 ? 'style="font-size:10px;letter-spacing:-0.3px"' : '';
+            return '<div class="kpi-cell sales-overview-cell cursor-default">' +
+                '<div class="kpi-label" ' + labelStyle + '>' + k.label + '</div>' +
+                '<div class="kpi-value sales-overview-value ' + k.valCls + '">' + k.value + '<span class="unit text-xs">' + k.unit + '</span></div>' +
+                '</div>';
+        }).join('');
+    }
+
+    function renderCompositionChart() {
+        var dom = document.getElementById('invCompositionCenterChart');
+        if (!dom) return;
+        charts.composition = echarts.init(dom);
+        
+        var agingIntervals = [
+            { name: '0-1月', value: 1152, pct: '61.0%', range: '≤30天', color: '#0057B8' },
+            { name: '1-2月', value: 284, pct: '15.0%', range: '31-60天', color: '#2E6EB5' },
+            { name: '2-6月', value: 266, pct: '14.1%', range: '61-180天', color: '#6B8EA8' },
+            { name: '6-12月', value: 135, pct: '7.1%', range: '181-360天', color: '#E87722' },
+            { name: '大于12月', value: 53, pct: '2.8%', range: '>360天', color: '#D64550' }
+        ];
+
+        charts.composition.setOption({
+            tooltip: {
+                trigger: 'item',
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                borderColor: 'rgba(255,255,255,0.2)',
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                formatter: function(p) {
+                    var item = agingIntervals.find(function(d) { return d.name === p.name; });
+                    var rangeStr = item ? ' (' + item.range + ')' : '';
+                    return '<div class="font-bold mb-1 text-xs">' + p.name + rangeStr + '</div>' +
+                        '<div>成品金额：<b>' + p.value + ' 万元</b></div>' +
+                        '<div>库龄占比：<b>' + p.percent + '%</b></div>';
+                }
+            },
+            legend: {
+                orient: 'vertical',
+                right: 16,
+                top: 'middle',
+                textStyle: { color: '#4A5870', fontSize: 11 },
+                formatter: function(name) {
+                    var item = agingIntervals.find(function(d) { return d.name === name; });
+                    if (item) {
+                        return name + ' (' + item.range + ')  ' + item.value + '万 (' + item.pct + ')';
+                    }
+                    return name;
+                }
+            },
+            series: [{
+                name: '成品库龄区间',
+                type: 'pie',
+                radius: ['45%', '72%'],
+                center: ['30%', '50%'],
+                avoidLabelOverlap: true,
+                itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+                label: { show: true, position: 'inside', formatter: '{d}%', fontSize: 10.5, color: '#fff', fontWeight: 'bold' },
+                data: agingIntervals.map(function(d) {
+                    return { value: d.value, name: d.name, itemStyle: { color: d.color } };
+                })
+            }]
+        });
+    }
+
+    function renderCustShareChart() {
+        var dom = document.getElementById('invCustShareChart');
+        if (!dom) return;
+        charts.custShare = echarts.init(dom);
+        
+        var custData = [
+            { name: '华成换热', fullName: '华成换热设备有限公司', amt: 352, pct: 18.6 },
+            { name: '江苏恒力', fullName: '江苏恒力化工机械', amt: 286, pct: 15.1 },
+            { name: '艾克流体', fullName: '上海艾克流体科技', amt: 245, pct: 13.0 },
+            { name: '蓝箭环保', fullName: '山东蓝箭环保装备', amt: 205, pct: 10.8 },
+            { name: '中德能源', fullName: '浙江中德能源装备', amt: 181, pct: 9.6 },
+            { name: '佛山水处理', fullName: '广东佛山水处理设备', amt: 151, pct: 8.0 },
+            { name: '海尔空调', fullName: '合肥海尔空调器', amt: 138, pct: 7.3 },
+            { name: '其他客户', fullName: '其他常规客户汇总', amt: 332, pct: 17.6 }
+        ];
+
+        var names = custData.map(function(d) { return d.name; });
+        var amounts = custData.map(function(d) { return d.amt; });
+        var pcts = custData.map(function(d) { return d.pct; });
+
+        charts.custShare.setOption({
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(0,87,184,0.06)' } },
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                borderColor: 'rgba(255,255,255,0.2)',
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                formatter: function(ps) {
+                    var idx = ps[0].dataIndex;
+                    var item = custData[idx];
+                    return '<div class="font-bold mb-1 text-xs">' + item.fullName + '</div>' +
+                        '<div class="flex items-center justify-between gap-4 text-xs">' +
+                        '<span>' + ps[0].marker + ' 成品库存占用</span>' +
+                        '<b class="font-mono">' + item.amt + ' 万元</b>' +
+                        '</div>' +
+                        '<div class="flex items-center justify-between gap-4 text-xs">' +
+                        '<span>' + (ps[1] ? ps[1].marker : '●') + ' 占成品库存总额</span>' +
+                        '<b class="font-mono text-[#8DC63F]">' + item.pct + '%</b>' +
+                        '</div>';
+                }
+            },
+            legend: {
+                data: ['成品库存金额 (万元)', '占比 (%)'],
+                top: 0,
+                right: 10,
+                itemWidth: 10,
+                itemHeight: 8,
+                textStyle: { fontSize: 11, color: '#6B7A94' }
+            },
+            grid: { left: 42, right: 38, top: 32, bottom: 30 },
+            xAxis: {
+                type: 'category',
+                data: names,
+                axisLine: { lineStyle: { color: 'rgba(26,35,50,0.15)' } },
+                axisLabel: {
+                    color: '#1A2332',
+                    fontSize: 10.5,
+                    fontWeight: 500,
+                    interval: 0,
+                    rotate: 15
+                }
+            },
+            yAxis: [
+                {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: 'rgba(26,35,50,0.06)', type: 'dashed' } },
+                    axisLabel: { color: '#6B7A94', fontSize: 10 }
+                },
+                {
+                    type: 'value',
+                    min: 0,
+                    max: 25,
+                    splitLine: { show: false },
+                    axisLabel: { formatter: '{value}%', color: '#6B7A94', fontSize: 10 }
+                }
+            ],
+            series: [
+                {
+                    name: '成品库存金额 (万元)',
+                    type: 'bar',
+                    barWidth: 18,
+                    data: amounts,
+                    itemStyle: {
+                        borderRadius: [3, 3, 0, 0],
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#0057B8' },
+                            { offset: 1, color: '#2E6EB5' }
+                        ])
+                    }
+                },
+                {
+                    name: '占比 (%)',
+                    type: 'line',
+                    yAxisIndex: 1,
+                    data: pcts,
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 6,
+                    lineStyle: { width: 2.2, color: '#5F8E68' },
+                    itemStyle: { color: '#5F8E68' }
+                }
+            ]
+        });
+    }
+
+    function renderOverdueRankChart() {
+        var dom = document.getElementById('overdueCustomerRankChart');
+        if (!dom) return;
+        charts.overdueRank = echarts.init(dom);
+        var names = ['合肥海尔空调','青岛海信暖通','上海开利空调','美的制冷设备','珠海格力电器','大金空调中国','特灵空调系统','约克(无锡)空调','南京天加环境','麦克维尔武汉'];
+        var vals  = [156, 128, 96, 78, 65, 54, 48, 42, 38, 33];
+
+        charts.overdueRank.setOption({
+            tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: '{b}<br/>超期库存：<b>{c} 万元</b>' },
+            grid: { left: 96, right: 36, top: 6, bottom: 20 },
+            xAxis: { 
+                type: 'value', 
+                min: 0,
+                max: 180,
+                axisLabel: { formatter: '{value}万', color: '#6B7A94', fontSize: 10 }, 
+                splitLine: { lineStyle: { color: '#F3F4F6' } } 
+            },
+            yAxis: { 
+                type: 'category', 
+                inverse: true, 
+                data: names, 
+                axisLine: { lineStyle: { color: '#E5E7EB' } }, 
+                axisLabel: { color: '#1A2332', fontSize: 11 } 
+            },
+            dataZoom: [
+                {
+                    type: 'inside',
+                    yAxisIndex: 0,
+                    filterMode: 'empty',
+                    startValue: 0,
+                    endValue: 4,
+                    minValueSpan: 4,
+                    maxValueSpan: 4,
+                    zoomOnMouseWheel: false,
+                    moveOnMouseWheel: true,
+                    preventDefaultMouseMove: false
+                },
+                {
+                    type: 'slider',
+                    yAxisIndex: 0,
+                    filterMode: 'empty',
+                    startValue: 0,
+                    endValue: 4,
+                    width: 5,
+                    right: 4,
+                    top: 6,
+                    bottom: 22,
+                    borderColor: 'transparent',
+                    backgroundColor: 'rgba(26,35,50,0.05)',
+                    fillerColor: 'rgba(0,87,184,0.35)',
+                    borderRadius: 3,
+                    showDetail: false,
+                    showDataShadow: false,
+                    handleSize: '0%'
+                }
+            ],
+            series: [{
+                type: 'bar', 
+                barWidth: 14, 
+                data: vals,
+                itemStyle: {
+                    borderRadius: [0, 5, 5, 0],
+                    color: function(p) {
+                        if (p.dataIndex === 0) return '#E87722';
+                        if (p.dataIndex <= 2) return '#F39C12';
+                        return '#0057B8';
+                    }
+                },
+                label: { show: true, position: 'right', formatter: '{c}万', color: '#4A5870', fontSize: 10.5, fontWeight: 'bold' }
+            }]
+        });
+    }
+
+    function renderOverdueReasonChart() {
+        var dom = document.getElementById('overdueReasonChart');
+        if (!dom) return;
+        charts.reason = echarts.init(dom);
+        charts.reason.setOption({
+            tooltip: { trigger: 'item', formatter: '{b}<br/>金额：<b>{c} 万元</b> ({d}%)' },
+            legend: { 
+                orient: 'vertical', 
+                right: 4, 
+                top: 'middle', 
+                itemWidth: 10,
+                itemHeight: 10,
+                textStyle: { color: '#6B7A94', fontSize: 10 },
+                formatter: function(name) {
+                    var map = {
+                        '30天库存': '30天库存: 385万 (52.2%)',
+                        '60天库存': '60天库存: 215万 (29.1%)',
+                        '90天库存': '90天库存: 138万 (18.7%)'
+                    };
+                    return map[name] || name;
+                }
+            },
+            series: [{
+                name: '超期库存分析',
+                type: 'pie', 
+                radius: ['38%', '70%'], 
+                center: ['26%', '50%'],
+                itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+                label: { show: false },
+                data: [
+                    { value: 385, name: '30天库存', itemStyle: { color: '#0057B8' } },
+                    { value: 215, name: '60天库存', itemStyle: { color: '#F39C12' } },
+                    { value: 138, name: '90天库存', itemStyle: { color: '#E87722' } }
+                ]
+            }]
+        });
+    }
+
+    function renderMaterialTable() {
+        var tbody = document.getElementById('overdueMaterialTbody');
+        if (!tbody) return;
+        tbody.innerHTML = MATERIAL_LIST.map(function(m) {
+            return '<tr class="hover:bg-slate-50/70 transition-colors border-b border-[rgba(26,35,50,0.04)] text-[#1A2332]" style="height: 35px;">' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + m.no + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + m.name + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + m.cat + '</td>' +
+                '<td class="py-1.5 px-3 text-right font-normal text-[#1A2332]">' + m.qty + '</td>' +
+                '<td class="py-1.5 px-3 text-right font-normal text-[#1A2332]">' + m.cost + '</td>' +
+                '<td class="py-1.5 px-3 text-right font-normal text-[#1A2332]">' + m.amt + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + m.inDate + '</td>' +
+                '<td class="py-1.5 px-3 text-right font-normal text-[#1A2332]">' + m.age + '天</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + m.risk + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + m.owner + '</td>' +
+                '<td class="py-1.5 px-3 font-normal text-[#1A2332]">' + m.plan + '</td>' +
+                '</tr>';
+        }).join('');
+    }
+
+    function showToast(msg) {
+        var el = document.getElementById('inventoryToast');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'inventoryToast';
+            el.className = 'fixed bottom-6 right-6 z-50 bg-[#1A2332] text-white px-4 py-2.5 rounded-lg shadow-xl text-xs flex items-center gap-2 border border-slate-700/50 transition-all duration-300 opacity-0 pointer-events-none transform translate-y-2';
+            document.body.appendChild(el);
+        }
+        el.innerHTML = '<svg class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg><span>' + msg + '</span>';
+        el.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-2');
+        el.classList.add('opacity-100', 'translate-y-0');
+        setTimeout(function() {
+            el.classList.remove('opacity-100', 'translate-y-0');
+            el.classList.add('opacity-0', 'pointer-events-none', 'translate-y-2');
+        }, 3000);
+    }
+
+    function exportMaterialLedgerExcel() {
+        if (!MATERIAL_LIST || !MATERIAL_LIST.length) {
+            alert('暂无物料数据可供导出');
+            return;
+        }
+
+        var headers = ['物料编码', '品名规格', '物料类别', '在库数量', '单位成本 (元)', '库存金额 (万元)', '入库日期', '库龄天数', '风险等级', '责任人', '拟处置方案'];
+        var aoa = [headers];
+
+        MATERIAL_LIST.forEach(function(m) {
+            aoa.push([
+                m.no,
+                m.name,
+                m.cat,
+                Number(m.qty),
+                Number(m.cost),
+                Number(m.amt),
+                m.inDate,
+                Number(m.age),
+                m.risk,
+                m.owner,
+                m.plan
+            ]);
+        });
+
+        var now = new Date();
+        var y = now.getFullYear();
+        var m = String(now.getMonth() + 1).padStart(2, '0');
+        var d = String(now.getDate()).padStart(2, '0');
+        var fileName = '高库龄与呆滞物料风险预警台账_' + y + m + d + '.xlsx';
+
+        if (typeof XLSX !== 'undefined') {
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            // 预设美观合理的列宽 (字符数)
+            ws['!cols'] = [
+                { wch: 15 }, // 物料编码
+                { wch: 22 }, // 品名规格
+                { wch: 12 }, // 物料类别
+                { wch: 12 }, // 在库数量
+                { wch: 14 }, // 单位成本(元)
+                { wch: 15 }, // 库存金额(万元)
+                { wch: 13 }, // 入库日期
+                { wch: 10 }, // 库龄天数
+                { wch: 12 }, // 风险等级
+                { wch: 10 }, // 责任人
+                { wch: 32 }  // 拟处置方案
+            ];
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '高库龄呆滞台账');
+            XLSX.writeFile(wb, fileName);
+            showToast('已成功导出标准 Excel (.xlsx) 文件！');
+        } else {
+            alert('Excel 导出组件加载中，请稍后再试！');
+        }
+    }
+
+    // 兼容原函数名
+    function exportMaterialLedger() {
+        exportMaterialLedgerExcel();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        BDLayout.render({ active: 'prod-inv' });
+        renderKPIs();
+        renderCompositionChart();
+        renderCustShareChart();
+        renderOverdueRankChart();
+        renderOverdueReasonChart();
+        renderMaterialTable();
+
+        window.addEventListener('resize', function() {
+            for (var k in charts) {
+                if (charts[k]) charts[k].resize();
+            }
+        });
+    });
+    </script>
+</body>
+</html>

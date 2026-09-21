@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>资金管理 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+        <aside id="sidebar" class="sidebar"></aside>
+
+        <main class="flex-1 overflow-auto">
+            <header id="page-header"></header>
+
+            <div class="p-8">
+                <div id="kpi-cards" class="grid grid-cols-5 gap-4 mb-6"></div>
+
+                <div class="grid grid-cols-12 gap-6 mb-6">
+                    <div class="col-span-5 card p-7">
+                        <h3 class="section-title font-semibold text-[#0B1128] mb-2">资金构成总览</h3>
+                        <div id="compose-chart" class="chart-container-sm"></div>
+                    </div>
+                    <div class="col-span-7 card p-7">
+                        <h3 class="section-title font-semibold text-[#0B1128] mb-2">近30天资金余额趋势</h3>
+                        <div id="trend-chart" class="chart-container"></div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-12 gap-6 mb-6">
+                    <div class="col-span-4 card p-7">
+                        <h3 class="section-title font-semibold text-[#0B1128] mb-6">应付款分析</h3>
+                        <div class="space-y-4" id="payable-kpis"></div>
+                    </div>
+                    <div class="col-span-8 card p-7">
+                        <div class="flex items-center justify-between mb-5">
+                            <h3 class="section-title font-semibold text-[#0B1128]">供应商到期应付明细</h3>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>供应商名称</th>
+                                    <th class="text-right">应付金额 (万)</th>
+                                    <th class="text-right">账期天数</th>
+                                    <th class="text-right">入库到今天数</th>
+                                    <th class="text-right">是否到期</th>
+                                    <th class="text-center w-24">状态</th>
+                                </tr>
+                            </thead>
+                            <tbody id="supplier-tbody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    var SUPPLIERS_BASE = [
+        { name: '山东南山铝业', amt: 965, terms: 30, days: 28 },
+        { name: '宁波金田铜业', amt: 762, terms: 60, days: 66 },
+        { name: '常州赛克焊材', amt: 726, terms: 60, days: 48 },
+        { name: '安徽楚江合金', amt: 658, terms: 45, days: 40 },
+        { name: '江苏沙钢集团', amt: 468, terms: 60, days: 95 },
+        { name: '佛山众兴金属', amt: 423, terms: 45, days: 38 },
+        { name: '上海宝钢工业品', amt: 342, terms: 30, days: 42 },
+        { name: '东莞劲胜五金', amt: 316, terms: 60, days: 36 },
+        { name: '苏州东山精密', amt: 286, terms: 30, days: 41 },
+        { name: '无锡华光密封件', amt: 254, terms: 45, days: 58 }
+    ];
+
+    function buildMock(factor) {
+        factor = factor || 1;
+        var days = [], bank = [], bankBill = [], commBill = [];
+        for (var i = 0; i < 30; i++) {
+            days.push('07-' + (i < 9 ? '0' + (i + 1) : (i + 1)));
+            bank.push(Math.round((8250 + i * 8 + Math.sin(i / 4) * 110 + (i % 5) * 12) * factor));
+            bankBill.push(Math.round((2240 + i * 2 + Math.sin(i / 3) * 45 + (i % 4) * 8) * factor));
+            commBill.push(Math.round((405 + i * 0.3 + Math.sin(i / 5) * 18 + (i % 6) * 3) * factor));
+        }
+        var suppliers = SUPPLIERS_BASE.map(function (s) {
+            return { name: s.name, amt: Math.round(s.amt * factor), terms: s.terms, days: s.days };
+        }).sort(function (a, b) { return b.amt - a.amt; });
+        var payable = suppliers.reduce(function (s, x) { return s + x.amt; }, 0);
+        var overdue = suppliers.reduce(function (s, x) { return s + (x.days > x.terms + 7 ? x.amt : 0); }, 0);
+        return {
+            kpi: {
+                bankDeposit: bank[29],
+                bankAcceptance: bankBill[29],
+                commAcceptance: commBill[29],
+                payable: payable,
+                overduePayable: overdue
+            },
+            trend: { days: days, bank: bank, bankBill: bankBill, commBill: commBill },
+            suppliers: suppliers
+        };
+    }
+
+    var DATA = buildMock();
+    var charts = {};
+
+    function fmt(n) { return n.toLocaleString('zh-CN'); }
+
+    function renderKPIs() {
+        var k = DATA.kpi;
+        var cards = [
+            { label: '银行存款总额', id: 'KPI-018', value: fmt(k.bankDeposit), unit: '万', icon: 'M12 21v-8.25M15.75 21v-8.25M8.25 21v-8.25M3 9l9-6 9 6m-1.5 12V10.332A48.36 48.36 0 0012 9.75c-2.551 0-5.056.2-7.5.582V21M3 21h18M12 6.75h.008v.008H12V6.75z', color: '#0068FF', bg: 'rgba(0,104,255,0.08)' },
+            { label: '银行承兑汇票总额', id: 'KPI-019', value: fmt(k.bankAcceptance), unit: '万', icon: 'M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z', color: '#11387F', bg: 'rgba(17,56,127,0.08)' },
+            { label: '商业承兑汇票总额', id: 'KPI-020', value: fmt(k.commAcceptance), unit: '万', icon: 'M15.75 17.25v3.375c0 .621-.504 1.125-1.125 1.125h-9.75a1.125 1.125 0 01-1.125-1.125V7.875c0-.621.504-1.125 1.125-1.125H6.75a9.06 9.06 0 011.5.124m7.5 10.376h3.375c.621 0 1.125-.504 1.125-1.125V11.25c0-4.46-3.243-8.161-7.5-8.876a9.06 9.06 0 00-1.5-.124H9.375c-.621 0-1.125.504-1.125 1.125v3.5m7.5 10.375H9.375a1.125 1.125 0 01-1.125-1.125v-9.25m12 6.625v-1.875a3.375 3.375 0 00-3.375-3.375h-1.5a1.125 1.125 0 01-1.125-1.125v-1.5a3.375 3.375 0 00-3.375-3.375H9.75', color: '#E87722', bg: 'rgba(232,119,34,0.08)' },
+            { label: '应付款_应付', id: 'KPI-021', value: fmt(k.payable), unit: '万', icon: 'M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 002.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 00-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 00.75-.75 2.25 2.25 0 00-.1-.664m-5.8 0A2.251 2.251 0 0113.5 2.25H15c1.012 0 1.867.668 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25zM6.75 12h.008v.008H6.75V12zm0 3h.008v.008H6.75V15zm0 3h.008v.008H6.75V18z', color: '#2FA984', bg: 'rgba(94,212,173,0.15)' },
+            { label: '应付款_到期应付', id: 'KPI-022', value: fmt(k.overduePayable), unit: '万', icon: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z', color: '#E87722', bg: 'rgba(232,119,34,0.08)' }
+        ];
+        document.getElementById('kpi-cards').innerHTML = cards.map(function (c) {
+            return '<div class="card p-5">' +
+                '<div class="flex items-center justify-between mb-4">' +
+                '<div class="icon-circle" style="background:' + c.bg + '"><svg class="w-[18px] h-[18px]" style="color:' + c.color + '" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + c.icon + '"/></svg></div>' +
+                '<span class="status-tag status-info">新增</span></div>' +
+                '<div class="text-sm text-[#656565] mb-1.5">' + c.label + '</div>' +
+                '<div class="metric-value">' + c.value + '<span class="text-lg font-semibold">' + c.unit + '</span></div></div>';
+        }).join('');
+    }
+
+    function renderCompose() {
+        var el = document.getElementById('compose-chart');
+        charts.compose = charts.compose || echarts.init(el);
+        var k = DATA.kpi;
+        var total = k.bankDeposit + k.bankAcceptance + k.commAcceptance;
+        var opt = alfaBaseChartOpt();
+        opt.legend = { bottom: 0, left: 'center', itemWidth: 10, itemHeight: 10, textStyle: { fontSize: 12, color: '#656565' } };
+        opt.tooltip.axisPointer = { type: 'item' };
+        opt.title = {
+            text: fmt(total) + ' 万',
+            subtext: '资金总额（截至昨日）',
+            left: '34%', top: '38%',
+            textAlign: 'center',
+            textStyle: { color: '#0B1128', fontSize: 20, fontWeight: 700 },
+            subtextStyle: { color: '#656565', fontSize: 11 }
+        };
+        opt.series = [{
+            type: 'pie',
+            center: ['34%', '44%'],
+            radius: ['56%', '78%'],
+            avoidLabelOverlap: true,
+            itemStyle: { borderColor: '#fff', borderWidth: 2 },
+            label: { show: false },
+            data: [
+                { name: '银行存款', value: k.bankDeposit, itemStyle: { color: '#0068FF' } },
+                { name: '银行承兑汇票', value: k.bankAcceptance, itemStyle: { color: '#11387F' } },
+                { name: '商业承兑汇票', value: k.commAcceptance, itemStyle: { color: '#E87722' } }
+            ]
+        }];
+        charts.compose.setOption(opt, true);
+    }
+
+    function renderTrend() {
+        var el = document.getElementById('trend-chart');
+        charts.trend = charts.trend || echarts.init(el);
+        var t = DATA.trend;
+        var opt = alfaBaseChartOpt();
+        opt.tooltip.trigger = 'axis';
+        opt.tooltip.axisPointer = { type: 'line', lineStyle: { color: 'rgba(0,104,255,0.2)' } };
+        opt.xAxis = { type: 'category', boundaryGap: false, data: t.days, axisLine: { lineStyle: { color: '#E5E5E5' } }, axisTick: { show: false }, axisLabel: { color: '#656565', interval: 4 } };
+        opt.yAxis = { type: 'value', splitLine: { lineStyle: { color: '#EEEEEC' } }, axisLabel: { color: '#ACACAC' } };
+        var line = function (name, data, color) {
+            return { name: name, type: 'line', smooth: true, symbolSize: 5, symbol: 'circle',
+                itemStyle: { color: color }, lineStyle: { color: color, width: 2.5 },
+                areaStyle: { color: color, opacity: 0.08 }, data: data };
+        };
+        opt.series = [
+            line('银行存款', t.bank, '#0068FF'),
+            line('银行承兑汇票', t.bankBill, '#11387F'),
+            line('商业承兑汇票', t.commBill, '#E87722')
+        ];
+        charts.trend.setOption(opt, true);
+    }
+
+    function renderPayable() {
+        var k = DATA.kpi;
+        var pct = (k.overduePayable / k.payable * 100).toFixed(1);
+        var items = [
+            { id: 'KPI-021', l: '应付款_应付', v: k.payable, cls: 'text-[#0B1128]' },
+            { id: 'KPI-022', l: '应付款_到期应付', v: k.overduePayable, cls: 'text-[#E87722]' }
+        ];
+        var html = items.map(function (x) {
+            return '<div class="flex items-center justify-between p-4 rounded bg-[#F8F8F8]">' +
+                '<div><div class="text-xs text-[#656565]">' + x.l + ' <span class="status-tag status-info ml-1">新增</span></div></div>' +
+                '<div class="text-2xl font-bold ' + x.cls + '">' + fmt(x.v) + '<span class="text-xs font-medium text-[#ACACAC]">万</span></div></div>';
+        }).join('');
+        html += '<div class="mt-4">' +
+            '<div class="flex items-center justify-between text-xs mb-2"><span class="text-[#656565]">到期应付占应付款比例</span><span class="font-semibold text-[#E87722]">' + pct + '%</span></div>' +
+            '<div class="progress-bar-bg"><div class="progress-bar-fill" style="width:' + pct + '%;background:#E87722;"></div></div></div>';
+        document.getElementById('payable-kpis').innerHTML = html;
+    }
+
+    function renderSuppliers() {
+        var rows = DATA.suppliers;
+        document.getElementById('supplier-tbody').innerHTML = rows.map(function (r) {
+            var isDue = r.days > r.terms + 7;
+            var diff = isDue ? ('超 ' + (r.days - r.terms - 7) + ' 天') : ('剩余 ' + (r.terms + 7 - r.days) + ' 天');
+            return '<tr>' +
+                '<td class="text-[#0B1128] font-medium">' + r.name + '</td>' +
+                '<td class="text-right font-semibold text-[#0B1128]">' + fmt(r.amt) + '</td>' +
+                '<td class="text-right text-[#656565]">' + r.terms + ' 天</td>' +
+                '<td class="text-right text-[#656565]">' + r.days + ' 天</td>' +
+                '<td class="text-right ' + (isDue ? 'text-[#E87722] font-medium' : 'text-[#2FA984]') + '">' + diff + '</td>' +
+                '<td class="text-center"><span class="status-tag ' + (isDue ? 'status-warning' : 'status-success') + '">' + (isDue ? '到期' : '未到期') + '</span></td></tr>';
+        }).join('');
+    }
+
+    function onPeriodChange() {
+        var p = BDLayout.getPeriod();
+        var mIdx = parseInt(p.month) || 7;
+        var factor = 0.9 + (mIdx % 5) * 0.04;
+        DATA = buildMock(factor);
+        renderKPIs(); renderCompose(); renderTrend(); renderPayable(); renderSuppliers();
+    }
+    window.onPeriodChange = onPeriodChange;
+
+    BDLayout.render({ active: 'funds', eyebrow: 'FUNDS MANAGEMENT', title: '资金管理', subtitle: '示例集团 · 2026年7月 · 每日资金余额 / 应付款监控（新增模块）', month: '7月' });
+    renderKPIs(); renderCompose(); renderTrend(); renderPayable(); renderSuppliers();
+    window.addEventListener('resize', function () { Object.values(charts).forEach(function (c) { c.resize(); }); });
+    </script>
+</body>
+</html>

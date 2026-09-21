@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>行业经营分析表 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        .custom-scroll::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f1f5f9; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .editable-cell:hover { background-color: #f8fafc; cursor: pointer; }
+        .dropdown-menu-floating {
+            position: absolute;
+            background: #FFFFFF !important;
+            border-radius: 12px;
+            box-shadow: 0 16px 40px rgba(26, 35, 50, 0.22), 0 0 0 1px rgba(0, 87, 184, 0.18) !important;
+            z-index: 99999 !important;
+        }
+        .month-item {
+            user-select: none;
+            transition: all 0.15s ease;
+        }
+    </style>
+</head>
+<body class="min-h-screen bg-[#F0F2F5]">
+    <div class="flex min-h-screen">
+
+        <!-- ============== 左侧导航栏 ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <!-- ============== 主内容区 ============== -->
+        <main class="flex-1 overflow-auto">
+            <!-- 顶栏 -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5 bg-white border-b border-slate-200">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <div class="w-2 h-5 bg-[#0057B8] rounded-full"></div>
+                        <span class="font-bold text-base text-[#1A2332]">销售分析中心 · 行业经营分析表</span>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-4 max-w-[1720px] mx-auto space-y-3.5">
+
+                <!-- 行业经营分析主表 (严格 1:1 对齐 Excel「行业经营分析表」) -->
+                <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+                    <!-- 表头说明区 (严格还原 Excel 模板标题与副标题) -->
+                    <div class="px-5 py-3.5 bg-gradient-to-r from-slate-50 via-white to-slate-50 border-b border-slate-200 flex items-center justify-between">
+                        <div>
+                            <h2 class="text-base font-bold text-[#1A2332]">
+                                <span>行业经营分析表（SBU 营销分类管理）</span>
+                            </h2>
+                            <div class="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                <span>按五大行业进行经营业绩监控、预测和策略部署</span>
+                                <span class="text-slate-300">|</span>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="font-semibold text-slate-700">统计月份：</span>
+                                    <div class="relative">
+                                        <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1.5 px-2.5 py-1 bg-white hover:bg-slate-50 border border-slate-300 hover:border-[#0057B8] rounded-md shadow-sm transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                            <span id="currentMonthText">9月</span>
+                                            <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                            </svg>
+                                        </button>
+
+                                        <!-- 月份下拉面板 (同驾驶舱 3列网格) -->
+                                        <div id="monthDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-48 p-2.5">
+                                            <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between border-b border-slate-100 mb-1.5">
+                                                <span>选择月份</span>
+                                                <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">1~12月全量</span>
+                                            </div>
+                                            <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex items-center gap-3 text-xs text-slate-400">
+                            <span>金额单位：<span class="font-semibold text-slate-600">万元</span></span>
+                            <button type="button" onclick="exportIndustryExcel()" class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium transition cursor-pointer flex items-center gap-1 border border-slate-200" title="导出行业经营分析表 Excel">
+                                <svg class="w-3.5 h-3.5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                                <span>导出 Excel</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- 表格滚动容器 -->
+                    <div class="overflow-x-auto custom-scroll">
+                        <table class="w-full text-xs text-left border-collapse" id="industryAnalysisTable">
+                            <thead>
+                                <tr class="bg-[#F4F7FA] text-[#6B7A94] text-[11px] font-bold border-b border-slate-200 uppercase tracking-wider" style="height: 36px;">
+                                    <th class="px-3 text-center border-r border-slate-200" style="width: 55px;">行次</th>
+                                    <th class="px-3 border-r border-slate-200 bg-[#F4F7FA]" style="width: 240px;">项目</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">空调制冷</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">工业制冷</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">船舶行业</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">储能行业</th>
+                                    <th class="px-3 text-right border-r border-slate-200" style="width: 140px;">数据中心</th>
+                                    <th class="px-3 text-right bg-[#0057B8]/5 text-[#0057B8] font-bold" style="width: 160px;">合计</th>
+                                </tr>
+                            </thead>
+                            <tbody id="industryTableBody" class="divide-y divide-slate-100 text-slate-700">
+                                <!-- 由 JS 动态渲染 22 行标准指标 -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- 底部提示与举措保存状态 -->
+                    <div class="px-5 py-2.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-block w-2 h-2 rounded-full bg-emerald-500"></span>
+                            <span>所有指标数据与【目标填报中心】、【实际数据工作台】动态实时联动联动</span>
+                        </div>
+                        <div class="text-slate-400" id="saveStatusTip">
+                            根因与核心举措支持各行业直接点击编辑，自动保存至本地
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/sbu_initial_data.js"></script>
+    <script src="assets/js/sales-target-store.js"></script>
+    <script src="assets/js/layout.js"></script>
+    <script>
+    var currentMonth = 9;
+    var industriesList = ['空调制冷', '工业制冷', '船舶行业', '储能行业', '数据中心'];
+
+    // 默认或从 localStorage 加载文本分析与举措
+    function getStoredNotes(month) {
+        var key = 'BAODE_INDUSTRY_NOTES_' + month;
+        var defaultNotes = {
+            r17: {
+                '空调制冷': '重点客户下半年集采交付推进顺利，产销衔接通畅',
+                '工业制冷': '低温项目招标延后至第四季度，已接单未生产转化放缓',
+                '船舶行业': '船级社认证落地后订单增长明显，外贸订单提速',
+                '储能行业': '储能液冷新客户持续导入中，打样测试节奏良好',
+                '数据中心': 'AI液冷算力中心需求激增，超额完成月度出货目标',
+                '合计': '整体进度符合预期，数据中心与船舶行业贡献显著超额增量'
+            },
+            r18: {
+                '空调制冷': '巩固头部 OEM 战略集采份额，加快标准化现货周转',
+                '工业制冷': '主攻大型冷链及化工冷冻防爆特种换热器招投标',
+                '船舶行业': '深耕沿海船厂配套，拓展特种耐腐蚀钛板钎焊产品',
+                '储能行业': '配合储能系统集成商进行定制化快插接口总成开发',
+                '数据中心': '聚焦超大算力中心相变浸没与微通道冷却前沿技术方案',
+                '合计': '推行五大行业专班协同作战，强化高毛利定制方案推广'
+            },
+            r19: {
+                '空调制冷': '优化钎焊炉排产批次，将标准件交付周期压缩至7天',
+                '工业制冷': '保障大温差特种管路焊接试压一次合格率',
+                '船舶行业': '提前备料高耐腐特种合金板材，防范供应链瓶颈',
+                '储能行业': '建立储能板换模块化快速打样专线',
+                '数据中心': '增加十万级洁净组装车间产能，满足高标准出厂要求',
+                '合计': '产研紧密咬合，打通大项目保交期快速绿色通道'
+            },
+            r20: {
+                '空调制冷': '需商务部协助缩短大客户框架合同法务会签周期',
+                '工业制冷': '需技术研发中心提供现场工程管路振动模拟支持',
+                '船舶行业': '需品质部协同推进第二批船级社型式试验复检',
+                '储能行业': '需运营部协调配套专用连接件战略供应商库容',
+                '数据中心': '需总经理室协调重点标杆客户高层技术交流互访',
+                '合计': '经管会按周拉通跨部门堵点清单，确保资源高效配置到位'
+            }
+        };
+
+        try {
+            var raw = localStorage.getItem(key);
+            if (raw) {
+                var parsed = JSON.parse(raw);
+                if (!parsed.r17 && parsed.r19) parsed.r17 = parsed.r19;
+                if (!parsed.r18 && parsed.r20) parsed.r18 = parsed.r20;
+                if (!parsed.r19 && parsed.r21) parsed.r19 = parsed.r21;
+                if (!parsed.r20 && parsed.r22) parsed.r20 = parsed.r22;
+                return parsed;
+            }
+        } catch(e){}
+        return defaultNotes;
+    }
+
+    function saveNoteCell(rowKey, ind, val) {
+        var notes = getStoredNotes(currentMonth);
+        if (!notes[rowKey]) notes[rowKey] = {};
+        notes[rowKey][ind] = val;
+        try {
+            localStorage.setItem('BAODE_INDUSTRY_NOTES_' + currentMonth, JSON.stringify(notes));
+            var tip = document.getElementById('saveStatusTip');
+            if (tip) {
+                tip.innerHTML = '<span class="text-emerald-600 font-semibold">✓ 举措内容已自动保存 (' + new Date().toLocaleTimeString() + ')</span>';
+            }
+        } catch(e){}
+    }
+
+    var sysNow = new Date();
+    var currentSysMonth = sysNow.getMonth() + 1;
+
+    function renderMonthDropdown() {
+        var grid = document.getElementById('monthOptionsGrid');
+        if (!grid) return;
+        var html = '';
+        var tipEl = document.getElementById('monthLimitTip');
+        if (tipEl) {
+            tipEl.innerText = '当期最多至' + currentSysMonth + '月';
+        }
+        for (var m = 1; m <= 12; m++) {
+            var isFuture = (m > currentSysMonth);
+            var isSelected = (m === currentMonth);
+            var label = m + '月';
+            if (isFuture) {
+                html += '<div class="month-item text-center py-1.5 rounded-lg text-xs font-medium text-[#94A3B8] bg-slate-100/70 cursor-not-allowed select-none opacity-40" title="未来月份尚未发生，不可查询">' + label + '</div>';
+            } else if (isSelected) {
+                html += '<div class="month-item text-center py-1.5 rounded-lg text-xs font-bold bg-[#0057B8] text-white cursor-pointer shadow-sm" onclick="selectMonth(' + m + ')">' + label + '</div>';
+            } else {
+                html += '<div class="month-item text-center py-1.5 rounded-lg text-xs font-semibold text-[#1A2332] hover:bg-[#0057B8]/10 hover:text-[#0057B8] cursor-pointer" onclick="selectMonth(' + m + ')">' + label + '</div>';
+            }
+        }
+        grid.innerHTML = html;
+        var mText = document.getElementById('currentMonthText');
+        if (mText) mText.innerText = currentMonth + '月';
+    }
+
+    function toggleDropdown(menuId, e) {
+        if (e) e.stopPropagation();
+        var menu = document.getElementById(menuId);
+        if (!menu) return;
+        var isHidden = menu.classList.contains('hidden');
+        var chevron = document.getElementById('monthChevron');
+        if (isHidden) {
+            menu.classList.remove('hidden');
+            if (chevron) chevron.style.transform = 'rotate(180deg)';
+            renderMonthDropdown();
+        } else {
+            menu.classList.add('hidden');
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    function selectMonth(m) {
+        var mNum = parseInt(m) || 9;
+        if (mNum > currentSysMonth) return; // 禁用未来月份
+        currentMonth = mNum;
+        var menu = document.getElementById('monthDropdownMenu');
+        if (menu) menu.classList.add('hidden');
+        var chevron = document.getElementById('monthChevron');
+        if (chevron) chevron.style.transform = 'rotate(0deg)';
+        renderMonthDropdown();
+        renderIndustryAnalysisView();
+    }
+
+    document.addEventListener('click', function(e) {
+        var menu = document.getElementById('monthDropdownMenu');
+        var btn = document.getElementById('monthDropdownBtn');
+        if (menu && !menu.classList.contains('hidden')) {
+            if (btn && (btn === e.target || btn.contains(e.target))) return;
+            if (menu.contains(e.target)) return;
+            menu.classList.add('hidden');
+            var chevron = document.getElementById('monthChevron');
+            if (chevron) chevron.style.transform = 'rotate(0deg)';
+        }
+    });
+
+    function renderIndustryAnalysisView() {
+        var dataObj = BaodeTargetStore.getIndustryAnalysisMatrix(currentMonth);
+        var matrix = dataObj.matrix;
+        var notes = getStoredNotes(currentMonth);
+
+        // 渲染主表 20 行 (严格 1:1 对齐最新 Excel「行业经营分析表」)
+        var tbody = document.getElementById('industryTableBody');
+        var html = '';
+
+        // 辅助格式化函数
+        function fmtAmt(val) {
+            if (val === undefined || val === null || isNaN(val)) return '-';
+            return Math.round(val).toLocaleString();
+        }
+        function fmtRate(val) {
+            if (val === undefined || val === null || isNaN(val) || val === 0) return '0.0%';
+            return (val * 100).toFixed(1) + '%';
+        }
+        function fmtGap(val) {
+            if (val === undefined || val === null || isNaN(val)) return '-';
+            var rounded = Math.round(val);
+            var cls = rounded >= 0 ? 'text-emerald-600 font-bold' : 'text-rose-600 font-bold';
+            return '<span class="' + cls + '">' + (rounded > 0 ? '+' : '') + rounded.toLocaleString() + '</span>';
+        }
+
+        function buildSectionHeader(title) {
+            return '<tr class="bg-[#F0F4F9] border-y border-slate-200">' +
+                '<td colspan="8" class="px-4 py-2 text-left bg-[#F0F4F9]">' +
+                    '<div class="flex items-center gap-2">' +
+                        '<span class="w-1.5 h-3.5 bg-[#0057B8] rounded-full inline-block flex-shrink-0"></span>' +
+                        '<span class="font-bold text-xs text-[#0057B8] tracking-wider whitespace-nowrap">' + title + '</span>' +
+                    '</div>' +
+                '</td>' +
+            '</tr>';
+        }
+
+        function buildMetricRow(rowIdx, rowTitle, valExtractor, isRate, isGap) {
+            var rowHtml = '<tr class="hover:bg-slate-50/80 transition-colors" style="height: 32px;">' +
+                '<td class="px-3 text-center text-slate-400 font-mono border-r border-slate-200/60">' + rowIdx + '</td>' +
+                '<td class="px-3 font-medium text-slate-800 border-r border-slate-200/60 bg-white">' + rowTitle + '</td>';
+
+            industriesList.forEach(function(ind) {
+                var d = matrix[ind] || {};
+                var rawVal = valExtractor(d);
+                var formatted = isGap ? fmtGap(rawVal) : (isRate ? fmtRate(rawVal) : fmtAmt(rawVal));
+                rowHtml += '<td class="px-3 text-right font-mono border-r border-slate-200/60">' + formatted + '</td>';
+            });
+
+            // 合计列
+            var totData = matrix['合计'] || {};
+            var totRaw = valExtractor(totData);
+            var totFormatted = isGap ? fmtGap(totRaw) : (isRate ? fmtRate(totRaw) : fmtAmt(totRaw));
+            rowHtml += '<td class="px-3 text-right font-mono font-bold bg-slate-50/60 text-[#0057B8]">' + totFormatted + '</td>';
+            rowHtml += '</tr>';
+            return rowHtml;
+        }
+
+        function handleNoteChange(el) {
+            var rowKey = el.getAttribute('data-row');
+            var ind = el.getAttribute('data-ind');
+            saveNoteCell(rowKey, ind, el.value);
+        }
+
+        function buildTextRow(rowIdx, rowTitle, rowKey) {
+            var rowHtml = '<tr class="hover:bg-slate-50/80 transition-colors bg-white">' +
+                '<td class="px-3 py-2 text-center text-slate-400 font-mono border-r border-slate-200/60 align-top">' + rowIdx + '</td>' +
+                '<td class="px-3 py-2 font-medium text-slate-800 border-r border-slate-200/60 bg-white align-top">' + rowTitle + '</td>';
+
+            industriesList.forEach(function(ind) {
+                var textVal = (notes[rowKey] && notes[rowKey][ind]) || '';
+                rowHtml += '<td class="px-2 py-1.5 border-r border-slate-200/60 align-top">' +
+                    '<textarea data-row="' + rowKey + '" data-ind="' + ind + '" onchange="handleNoteChange(this)" class="w-full text-xs text-slate-700 bg-slate-50/50 hover:bg-white focus:bg-white border border-transparent hover:border-slate-200 focus:border-[#0057B8] rounded p-1.5 transition resize-none leading-relaxed" rows="2">' + textVal + '</textarea>' +
+                '</td>';
+            });
+
+            var totText = (notes[rowKey] && notes[rowKey]['合计']) || '';
+            rowHtml += '<td class="px-2 py-1.5 bg-slate-50/60 align-top">' +
+                '<textarea data-row="' + rowKey + '" data-ind="合计" onchange="handleNoteChange(this)" class="w-full text-xs font-medium text-[#0057B8] bg-white/70 hover:bg-white focus:bg-white border border-slate-200 focus:border-[#0057B8] rounded p-1.5 transition resize-none leading-relaxed" rows="2">' + totText + '</textarea>' +
+            '</td>';
+
+            rowHtml += '</tr>';
+            return rowHtml;
+        }
+
+        // 模块一：全年目标 (行 1~3)
+        html += buildSectionHeader('一、全年目标');
+        html += buildMetricRow(1, '年度销售额目标', function(d){ return d.annualSalesTarget; }, false, false);
+        html += buildMetricRow(2, '年度毛利目标', function(d){ return d.annualMarginTarget; }, false, false);
+        html += buildMetricRow(3, '年度毛利率目标', function(d){ return d.annualMarginRate; }, true, false);
+
+        // 模块二：当月达成 (行 4~7)
+        html += buildSectionHeader('二、当月达成');
+        html += buildMetricRow(4, '本月销售额', function(d){ return d.curSales; }, false, false);
+        html += buildMetricRow(5, '本月毛利', function(d){ return d.curMargin; }, false, false);
+        html += buildMetricRow(6, '本月毛利率', function(d){ return d.curMarginRate; }, true, false);
+        html += buildMetricRow(7, '本月目标达成率', function(d){ return d.curSalesAchv; }, true, false);
+
+        // 模块三：全年累计达成 (行 8~12)
+        html += buildSectionHeader('三、全年累计达成（1-X月）');
+        html += buildMetricRow(8, '累计销售额', function(d){ return d.cumSales; }, false, false);
+        html += buildMetricRow(9, '累计毛利', function(d){ return d.cumMargin; }, false, false);
+        html += buildMetricRow(10, '累计毛利率', function(d){ return d.cumMarginRate; }, true, false);
+        html += buildMetricRow(11, '累计达成率', function(d){ return d.cumSalesAchv; }, true, false);
+        html += buildMetricRow(12, '与目标差距', function(d){ return d.gapTarget; }, false, true);
+
+        // 模块四：下期预测 (行 13~17)
+        html += buildSectionHeader('四、下期预测');
+        html += buildMetricRow(13, '已接单未生产', function(d){ return d.onhandAct; }, false, false);
+        html += buildMetricRow(14, '目标客户机会', function(d){ return d.oppAct; }, false, false);
+        html += buildMetricRow(15, '预测合计（13+14）', function(d){ return d.forecastSum; }, false, false);
+        html += buildMetricRow(16, '预测与目标差距', function(d){ return d.forecastGap; }, false, true);
+        html += buildTextRow(17, '差异分析（根因简述）', 'r17');
+
+        // 模块五：核心举措 (行 18~20)
+        html += buildSectionHeader('五、核心举措');
+        html += buildTextRow(18, '市场/销售策略', 'r18');
+        html += buildTextRow(19, '产品/交付措施', 'r19');
+        html += buildTextRow(20, '需协同事项', 'r20');
+
+        tbody.innerHTML = html;
+    }
+
+    // 导出 Excel 功能
+    function exportIndustryExcel() {
+        try {
+            var dataObj = BaodeTargetStore.getIndustryAnalysisMatrix(currentMonth);
+            var matrix = dataObj.matrix;
+            var notes = getStoredNotes(currentMonth);
+
+            var header1 = ["行业经营分析表（SBU 营销分类管理）", "", "", "", "", "", "", ""];
+            var header2 = ["按五大行业进行经营业绩监控、预测和策略部署", "", "", "", "", "", "统计月份：", currentMonth];
+            var header3 = ["行次", "项目", "空调制冷", "工业制冷", "船舶行业", "储能行业", "数据中心", "合计"];
+
+            var aoa = [header1, header2, header3];
+
+            function addSection(title) {
+                aoa.push([title, "", "", "", "", "", "", ""]);
+            }
+
+            function addMetric(idx, name, fn, isRate) {
+                var row = [idx, name];
+                industriesList.forEach(function(ind){
+                    var v = fn(matrix[ind] || {});
+                    row.push(isRate ? (v ? +(v * 100).toFixed(2) : 0) : Math.round(v));
+                });
+                var totV = fn(matrix['合计'] || {});
+                row.push(isRate ? (totV ? +(totV * 100).toFixed(2) : 0) : Math.round(totV));
+                aoa.push(row);
+            }
+
+            function addText(idx, name, key) {
+                var row = [idx, name];
+                industriesList.forEach(function(ind){
+                    row.push((notes[key] && notes[key][ind]) || "");
+                });
+                row.push((notes[key] && notes[key]['合计']) || "");
+                aoa.push(row);
+            }
+
+            addSection("一、全年目标");
+            addMetric(1, "年度销售额目标", function(d){ return d.annualSalesTarget; }, false);
+            addMetric(2, "年度毛利目标", function(d){ return d.annualMarginTarget; }, false);
+            addMetric(3, "年度毛利率目标", function(d){ return d.annualMarginRate; }, true);
+
+            addSection("二、当月达成");
+            addMetric(4, "本月销售额", function(d){ return d.curSales; }, false);
+            addMetric(5, "本月毛利", function(d){ return d.curMargin; }, false);
+            addMetric(6, "本月毛利率", function(d){ return d.curMarginRate; }, true);
+            addMetric(7, "本月目标达成率", function(d){ return d.curSalesAchv; }, true);
+
+            addSection("三、全年累计达成（1-X月）");
+            addMetric(8, "累计销售额", function(d){ return d.cumSales; }, false);
+            addMetric(9, "累计毛利", function(d){ return d.cumMargin; }, false);
+            addMetric(10, "累计毛利率", function(d){ return d.cumMarginRate; }, true);
+            addMetric(11, "累计达成率", function(d){ return d.cumSalesAchv; }, true);
+            addMetric(12, "与目标差距", function(d){ return d.gapTarget; }, false);
+
+            addSection("四、下期预测");
+            addMetric(13, "已接单未生产", function(d){ return d.onhandAct; }, false);
+            addMetric(14, "目标客户机会", function(d){ return d.oppAct; }, false);
+            addMetric(15, "预测合计（13+14）", function(d){ return d.forecastSum; }, false);
+            addMetric(16, "预测与目标差距", function(d){ return d.forecastGap; }, false);
+            addText(17, "差异分析（根因简述）", "r17");
+
+            addSection("五、核心举措");
+            addText(18, "市场/销售策略", "r18");
+            addText(19, "产品/交付措施", "r19");
+            addText(20, "需协同事项", "r20");
+
+            var ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!cols'] = [
+                { wch: 8 }, { wch: 28 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 16 }, { wch: 18 }
+            ];
+
+            var wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "行业经营分析表");
+            XLSX.writeFile(wb, "宝得经营平台_行业经营分析表_" + currentMonth + "月.xlsx");
+        } catch(e) {
+            alert("导出 Excel 失败：" + e.message);
+        }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        BDLayout.render({ active: 'sales-industry', title: '行业经营分析表' });
+        renderMonthDropdown();
+        renderIndustryAnalysisView();
+    });
+    </script>
+</body>
+</html>

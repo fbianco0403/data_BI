@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>销售分析中心 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        .kpi-row-grid {
+            display: grid;
+            grid-template-columns: repeat(6, 1fr);
+            gap: 8px;
+        }
+        @media (max-width: 1200px) {
+            .kpi-row-grid { grid-template-columns: repeat(3, 1fr); }
+        }
+        @media (max-width: 768px) {
+            .kpi-row-grid { grid-template-columns: repeat(2, 1fr); }
+        }
+        .rank-badge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 700;
+            background: rgba(26,35,50,0.08);
+            color: #6B7A94;
+        }
+        .rank-1 { background: rgba(0,87,184,0.15); color: #0057B8; }
+        .rank-2 { background: rgba(0,178,227,0.18); color: #008AA8; }
+        .rank-3 { background: rgba(141,198,63,0.20); color: #528419; }
+
+        /* 新下单客户表格鼠标滚轮区域纤细滚动条 */
+        .table-scroll-container::-webkit-scrollbar {
+            width: 4px;
+            height: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: rgba(26, 35, 50, 0.04);
+            border-radius: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: rgba(0, 87, 184, 0.35);
+            border-radius: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 87, 184, 0.65);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+
+        <!-- ============== 左侧导航栏 (静态预渲染，杜绝切换闪烁) ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <!-- ============== 主内容区 ============== -->
+        <main class="flex-1 overflow-auto">
+            <!-- 顶部导航条 (与企业经营驾驶舱 100% 相同，已取消导出数据按钮) -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5">
+                <div class="flex items-center justify-between">
+                    <!-- 左侧：页面标题 -->
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">销售分析中心</span>
+                    </div>
+
+                    <!-- 右侧：年月选择胶囊 (与驾驶舱 100% 保持一致：动态近三年与未来月份拦截) -->
+                    <div class="flex items-center">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <!-- 年份选择触发器 -->
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 年份下拉菜单 (动态渲染近三年) -->
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+
+                                <!-- 月份选择触发器 -->
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 月份下拉菜单 (动态禁用未来月份) -->
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                                        <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                            <span>选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+
+                <!-- 模块 1：销售总览与走势（企业经营驾驶舱同款卡片级封装） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <div class="flex items-center gap-2">
+                                <h3 class="section-title">销售分析总览</h3>
+                            </div>
+                            <div class="flex items-center gap-2">
+                                <a href="sales-industry.html" class="px-2.5 py-1 rounded bg-[#0057B8]/10 text-[#0057B8] hover:bg-[#0057B8]/20 text-xs font-semibold transition-all">
+                                    📊 行业经营分析表 &rarr;
+                                </a>
+                                <a href="sales-rep.html" class="px-2.5 py-1 rounded bg-[#5F8E68]/10 text-[#5F8E68] hover:bg-[#5F8E68]/20 text-xs font-semibold transition-all">
+                                    👤 业务员目标管理表 &rarr;
+                                </a>
+                            </div>
+                        </div>
+
+                        <!-- 6大核心KPI（嵌入在大卡片内部！） -->
+                        <div id="kpi-cards" class="sales-overview-grid mb-3"></div>
+
+                        <!-- 接单 · 出库 · 回款 周次递增走势（独占一行，全宽展示，与月份周次深度联动） -->
+                        <div class="chart-card">
+                            <div class="chart-card-title">
+                                <span class="chart-card-title-text" id="trend-chart-title">接单 · 出库 · 回款 逐周累计走势</span>
+                            </div>
+                            <div id="trend-chart" class="chart-box" style="height: 260px; min-height: 260px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 2：出货销售额与毛利分析（独占一行，宽度拉长，按客户/产品/行业多维透视） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">出货销售额与毛利分析</h3>
+                        </div>
+
+                        <div class="chart-card">
+                            <div class="flex items-center justify-between mb-1.5">
+                                <div class="chart-card-title !mb-0">
+                                    <span class="chart-card-title-text" id="margin-chart-title">重点客户 出货销售额与毛利表现</span>
+                                </div>
+                                <div class="tab-bar">
+                                    <button type="button" class="tab-btn active" data-dim="customer" onclick="switchDim(this)">按客户</button>
+                                    <button type="button" class="tab-btn" data-dim="product" onclick="switchDim(this)">按产品</button>
+                                    <button type="button" class="tab-btn" data-dim="industry" onclick="switchDim(this)">按行业</button>
+                                </div>
+                            </div>
+                            <div id="margin-chart" class="chart-box" style="height: 280px; min-height: 280px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 3：应收账龄结构 与 新下单客户明细（两者合并形成一行） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">应收账龄与新客户监控</h3>
+                        </div>
+
+                        <div class="multi-chart-row two">
+                            <!-- 左侧：应收账龄结构 -->
+                            <div class="chart-card flex flex-col justify-between">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <div class="chart-card-title !mb-0">
+                                            <span class="chart-card-title-text">应收账龄结构</span>
+                                        </div>
+                                        <span class="text-[11px] text-[#6B7A94] font-normal">当月全量应收</span>
+                                    </div>
+                                    <div id="aging-chart" class="chart-box" style="height: 210px; min-height: 210px;"></div>
+                                </div>
+                                <div class="grid grid-cols-3 gap-2 mt-2 pt-2 border-t border-[rgba(26,35,50,0.06)]" id="aging-kpis"></div>
+                            </div>
+
+                            <!-- 右侧：新下单客户明细 -->
+                            <div class="chart-card flex flex-col justify-between">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <div class="chart-card-title !mb-0">
+                                            <span class="chart-card-title-text">新下单客户明细</span>
+                                        </div>
+                                        <span class="text-[11px] text-[#5F8E68] font-bold">本期新拓</span>
+                                    </div>
+                                    <div class="grid grid-cols-2 gap-2 mb-2" id="newcust-kpis"></div>
+                                    <div class="overflow-y-auto overflow-x-auto table-scroll-container rounded border border-[rgba(26,35,50,0.06)] bg-white/40" style="height: 185px; max-height: 185px;">
+                                        <table class="w-full text-xs">
+                                            <thead class="sticky top-0 z-10 bg-[#EEF3F8] shadow-sm">
+                                                <tr class="bg-[rgba(0,87,184,0.08)] text-[#4A5870] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                                    <th class="text-left px-2.5 py-1">客户名称</th>
+                                                    <th class="text-right px-2.5 py-1">首单出库额</th>
+                                                    <th class="text-right px-2.5 py-1">下单日期</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="newcust-tbody" class="divide-y divide-[rgba(26,35,50,0.06)] text-[11.5px]"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 4：逾期应收分析与客户排名 -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">逾期应收分析</h3>
+                            <span class="text-xs text-[#D0021B] font-semibold">重点预警</span>
+                        </div>
+
+                        <div class="grid grid-cols-12 gap-3.5">
+                            <!-- 左侧：逾期业务类别分布诊断大盘 -->
+                            <div class="col-span-12 lg:col-span-5 chart-card flex flex-col justify-between">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <div class="chart-card-title !mb-0">
+                                            <span class="chart-card-title-text">逾期类别分布</span>
+                                        </div>
+                                        <span class="text-[11px] text-[#6B7A94]">普通 · 外贸 · 机组</span>
+                                    </div>
+
+                                    <!-- 3大核心逾期风控指标卡 -->
+                                    <div class="grid grid-cols-3 gap-2 mb-2" id="overdue-kpis"></div>
+
+                                    <!-- 逾期类别分布分析：环形图 + 明细列表 -->
+                                    <div class="pt-2.5 border-t border-[rgba(26,35,50,0.06)]">
+                                        <div class="grid grid-cols-12 gap-2.5 items-center">
+                                            <!-- 环形图容器 -->
+                                            <div class="col-span-5">
+                                                <div id="overdue-reason-chart" style="height: 180px; width: 100%;"></div>
+                                            </div>
+                                            <!-- 类别明细进度条与金额 -->
+                                            <div class="col-span-7 space-y-2.5" id="overdue-reason-list"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- 右侧：客户逾期排名 TOP10 -->
+                            <div class="col-span-12 lg:col-span-7 chart-card flex flex-col justify-between">
+                                <div>
+                                    <div class="flex items-center justify-between mb-1.5">
+                                        <div class="chart-card-title !mb-0">
+                                            <span class="chart-card-title-text">客户逾期排名 TOP10</span>
+                                        </div>
+                                        <span class="text-xs text-[#0057B8] cursor-pointer hover:underline select-none" onclick="toggleSort()">点击金额列排序 ⇅</span>
+                                    </div>
+                                    <div class="overflow-y-auto overflow-x-auto table-scroll-container rounded border border-[rgba(26,35,50,0.06)] bg-white/40" style="height: 245px; max-height: 245px;">
+                                        <table class="w-full text-xs">
+                                            <thead class="sticky top-0 z-10 bg-[#EEF3F8] shadow-sm">
+                                                <tr class="bg-[rgba(0,87,184,0.08)] text-[#4A5870] text-[11px] font-bold border-b border-[rgba(26,35,50,0.1)]" style="height: 28px;">
+                                                    <th class="w-12 text-center px-1 py-1">排名</th>
+                                                    <th class="text-left px-2.5 py-1">客户名称</th>
+                                                    <th class="text-right px-2.5 py-1 cursor-pointer select-none" onclick="toggleSort()">逾期金额 (万) ⇅</th>
+                                                    <th class="text-right px-2.5 py-1">占逾期总额</th>
+                                                    <th class="text-right px-2.5 py-1">最长账龄</th>
+                                                    <th class="text-center px-2.5 py-1 w-20">风险等级</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="rank-tbody" class="divide-y divide-[rgba(26,35,50,0.06)] text-[11.5px]"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    /* ============================================================
+       销售分析中心 - 数据与高管浅色系可视化引擎
+       ============================================================ */
+    var MONTHS = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+
+    function buildMock() {
+        // 12个月趋势（万元）
+        var seed = [16200, 14800, 17350, 16800, 18120, 18960, 19359, 18700, 17900, 18400, 17600, 19200];
+        var trend = MONTHS.map(function (m, i) {
+            var order = seed[i];
+            return {
+                month: m,
+                orderAmt: order,
+                shipAmt: Math.round(order * (0.92 + (i % 3) * 0.02)),
+                receivedAmt: Math.round(order * (0.86 + (i % 4) * 0.025))
+            };
+        });
+
+        var aging = [
+            { name: '未到期应收', value: 6820, id: 'SAL-006' },
+            { name: '0-30天', value: 3160, id: 'SAL-007' },
+            { name: '31-60天', value: 1890, id: 'SAL-008' },
+            { name: '61-90天', value: 1210, id: 'SAL-009' },
+            { name: '91-180天', value: 860, id: 'SAL-010' },
+            { name: '超期(>180天)', value: 540, id: 'SAL-011' }
+        ];
+
+        var ranks = [
+            { name: '华成换热设备有限公司', amt: 186, days: '212天' },
+            { name: '江苏恒力化工机械', amt: 152, days: '178天' },
+            { name: '上海艾克流体科技', amt: 121, days: '165天' },
+            { name: '山东蓝箭环保装备', amt: 98, days: '143天' },
+            { name: '浙江中德能源装备', amt: 87, days: '128天' },
+            { name: '广东佛山水处理设备', amt: 74, days: '112天' },
+            { name: '安徽海螺节能科技', amt: 61, days: '96天' },
+            { name: '四川长丰动力机械', amt: 53, days: '88天' },
+            { name: '河北鑫达冶金设备', amt: 45, days: '76天' },
+            { name: '湖南湘江食品工程', amt: 38, days: '65天' }
+        ];
+
+        var margin = {
+            customer: [
+                { name: '华成换热', shipAmt: 1272, amt: 486, rate: 38.2 },
+                { name: '恒力化工', shipAmt: 1128, amt: 412, rate: 36.5 },
+                { name: '艾克流体', shipAmt: 910, amt: 356, rate: 39.1 },
+                { name: '蓝箭环保', shipAmt: 856, amt: 298, rate: 34.8 },
+                { name: '中德能源', shipAmt: 704, amt: 265, rate: 37.6 },
+                { name: '佛山水处理', shipAmt: 652, amt: 221, rate: 33.9 },
+                { name: '海螺节能', shipAmt: 559, amt: 198, rate: 35.4 },
+                { name: '其他客户', shipAmt: 2860, amt: 864, rate: 30.2 }
+            ],
+            product: [
+                { name: '钎焊板式换热器', shipAmt: 3084, amt: 1280, rate: 41.5 },
+                { name: '可拆板式换热器', shipAmt: 2518, amt: 962, rate: 38.2 },
+                { name: '换热板片', shipAmt: 1490, amt: 486, rate: 32.6 },
+                { name: '换热机组系统', shipAmt: 1211, amt: 344, rate: 28.4 },
+                { name: '胶条密封件', shipAmt: 474, amt: 214, rate: 45.1 },
+                { name: '备件与服务', shipAmt: 340, amt: 178, rate: 52.3 }
+            ],
+            industry: [
+                { name: '航运', shipAmt: 1860, amt: 688, rate: 37.0 },
+                { name: '工业制冷', shipAmt: 1680, amt: 642, rate: 38.2 },
+                { name: '电池', shipAmt: 1540, amt: 616, rate: 40.0 },
+                { name: '空调与热泵', shipAmt: 2180, amt: 850, rate: 39.0 },
+                { name: '电力与暖通空调', shipAmt: 2350, amt: 893, rate: 38.0 },
+                { name: '数据中心-背板冷却', shipAmt: 1420, amt: 610, rate: 43.0 },
+                { name: '数据中心-CDU', shipAmt: 1650, amt: 726, rate: 44.0 },
+                { name: '数据中心-储能', shipAmt: 1380, amt: 566, rate: 41.0 },
+                { name: '半导体', shipAmt: 980, amt: 451, rate: 46.0 },
+                { name: '食品制药与化工行业', shipAmt: 1720, amt: 619, rate: 36.0 },
+                { name: '海外贸易公司', shipAmt: 1250, amt: 388, rate: 31.0 },
+                { name: '国内贸易公司', shipAmt: 900, amt: 279, rate: 31.0 }
+            ]
+        };
+
+        var newCustomers = {
+            count: 12,
+            totalAmt: 98200,
+            list: [
+                { name: '宁波瑞浦能源科技', amt: 12800, date: '08-04' },
+                { name: '青岛海诺生物工程', amt: 9600, date: '08-09' },
+                { name: '东莞晋亿精密五金', amt: 8200, date: '08-15' },
+                { name: '西安秦风热力工程', amt: 7400, date: '08-21' },
+                { name: '福州闽江水务集团', amt: 6300, date: '08-25' },
+                { name: '长春一汽富维东阳', amt: 4300, date: '08-28' },
+                { name: '苏州汇川自动化设备', amt: 11500, date: '08-29' },
+                { name: '无锡先导智能装备', amt: 10200, date: '08-30' },
+                { name: '常州中创新航能源', amt: 9100, date: '09-01' },
+                { name: '合肥国轩高科动力', amt: 7800, date: '09-02' },
+                { name: '武汉华星光电半导体', amt: 6100, date: '09-03' },
+                { name: '重庆长安热力系统', amt: 4900, date: '09-04' }
+            ]
+        };
+
+        return {
+            kpi: { orderAmt: 19359, shipAmt: 17910, receivedAmt: 16840, monthRate: 95.8, yearRate: 98.6, marginRate: 37.6 },
+            plan: { orderPlan: 20211, shipPlan: 19000 },
+            trend: trend, aging: aging, ranks: ranks, margin: margin, newCustomers: newCustomers,
+            overdue: {
+                total: 1030,
+                over90: 634,
+                over180: 268,
+                categories: [
+                    { name: '普通', value: 587, percent: 57.0, color: '#0057B8' },
+                    { name: '机组', value: 288, percent: 28.0, color: '#00B2E3' },
+                    { name: '外贸', value: 155, percent: 15.0, color: '#5F8E68' }
+                ],
+                reasons: [
+                    { name: '普通', value: 587, percent: 57.0, color: '#0057B8' },
+                    { name: '机组', value: 288, percent: 28.0, color: '#00B2E3' },
+                    { name: '外贸', value: 155, percent: 15.0, color: '#5F8E68' }
+                ]
+            }
+        };
+    }
+
+    var DATA = buildMock();
+    var sortDesc = true;
+    var charts = {};
+
+    function fmt(n) { return (n || 0).toLocaleString('zh-CN'); }
+
+    /* ---------- 1. 渲染 6 大核心 KPI (驾驶舱统一 sales-overview-cell 样式) ---------- */
+    function renderKPIs() {
+        var k = DATA.kpi;
+        var cards = [
+            { label: '接单销售额', value: fmt(k.orderAmt), unit: '万', color: '#0057B8' },
+            { label: '出货销售额', value: fmt(k.shipAmt), unit: '万', color: '#1A2332' },
+            { label: '销售回款额', value: fmt(k.receivedAmt), unit: '万', color: '#5F8E68' },
+            { label: '月度计划达成率', value: k.monthRate.toFixed(1), unit: '%', color: '#0057B8' },
+            { label: '年度累计达成率', value: k.yearRate.toFixed(1), unit: '%', color: '#5F8E68' },
+            { label: '综合毛利率', value: k.marginRate.toFixed(1), unit: '%', color: '#5F8E68' }
+        ];
+        var dom = document.getElementById('kpi-cards');
+        if (dom) {
+            dom.innerHTML = cards.map(function (c) {
+                return '<div class="sales-overview-cell">' +
+                    '<div class="kpi-label">' + c.label + '</div>' +
+                    '<div class="kpi-value sales-overview-value" style="color:' + c.color + '">' + c.value + '<span class="unit text-xs">' + c.unit + '</span></div>' +
+                    '</div>';
+            }).join('');
+        }
+    }
+
+    /* ---------- 2. 渲染 接单 · 出库 · 回款 周次递增趋势 (与选择月份深度联动) ---------- */
+    function getMonthWeeks(year, month) {
+        var y = parseInt(year) || 2026;
+        var m = parseInt(month) || 9;
+        var daysInMonth = new Date(y, m, 0).getDate();
+        // 经营习惯：28天的平年2月为4周，其余月份为5周滚动闭环
+        var numWeeks = daysInMonth <= 28 ? 4 : 5;
+        var weeks = [];
+        for (var i = 1; i <= numWeeks; i++) {
+            if (i === numWeeks) {
+                weeks.push('W' + i + ' (月累计)');
+            } else {
+                weeks.push('W' + i);
+            }
+        }
+        return { numWeeks: numWeeks, weeks: weeks, year: y, month: m, monthName: m + '月' };
+    }
+
+    function getWeeklyCumulative(total, numWeeks, ratios) {
+        var defaultRatios = numWeeks === 4
+            ? [0.28, 0.54, 0.80, 1.00]
+            : [0.22, 0.46, 0.70, 0.88, 1.00];
+        var r = ratios || defaultRatios;
+        return r.map(function(val, idx) {
+            if (idx === numWeeks - 1) return total;
+            return Math.round(total * val);
+        });
+    }
+
+    function renderTrend() {
+        var el = document.getElementById('trend-chart');
+        if (!el) return;
+        charts.trend = charts.trend || echarts.init(el);
+
+        var p = (typeof BDLayout !== 'undefined' && BDLayout.getPeriod) ? BDLayout.getPeriod() : { year: 2026, month: 9 };
+        var wInfo = getMonthWeeks(p.year, p.month);
+
+        var titleEl = document.getElementById('trend-chart-title');
+        if (titleEl) {
+            titleEl.textContent = '接单 · 出库 · 回款 逐周累计走势';
+        }
+
+        var orderWeekly = getWeeklyCumulative(DATA.kpi.orderAmt, wInfo.numWeeks, wInfo.numWeeks === 4 ? [0.28, 0.55, 0.82, 1.00] : [0.23, 0.48, 0.72, 0.89, 1.00]);
+        var shipWeekly = getWeeklyCumulative(DATA.kpi.shipAmt, wInfo.numWeeks, wInfo.numWeeks === 4 ? [0.25, 0.52, 0.78, 1.00] : [0.21, 0.45, 0.69, 0.87, 1.00]);
+        var recWeekly = getWeeklyCumulative(DATA.kpi.receivedAmt, wInfo.numWeeks, wInfo.numWeeks === 4 ? [0.22, 0.49, 0.75, 1.00] : [0.19, 0.42, 0.66, 0.85, 1.00]);
+
+        // 上月全月累计基准数据（放置在最左侧“上月累计”列，本月折线直接连贯至W1~W5）
+        var lastMonthOrder = 18500; // 上月接单全月累计（万元）
+        var lastMonthShip = 16840;  // 上月出库全月累计（万元）
+        var lastMonthRec = 15900;   // 上月回款全月累计（万元）
+
+        var xAxisCategories = ['上月累计'].concat(wInfo.weeks);
+        var orderData = [lastMonthOrder].concat(orderWeekly);
+        var shipData = [lastMonthShip].concat(shipWeekly);
+        var recData = [lastMonthRec].concat(recWeekly);
+
+        charts.trend.setOption({
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                borderColor: 'rgba(255,255,255,0.2)',
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(46,110,181,0.06)' } },
+                formatter: function (params) {
+                    var axisName = params[0].axisValue;
+                    var isLastMonth = axisName === '上月累计';
+                    var html = '<div class="font-bold mb-1.5 text-xs text-white/90 border-b border-white/20 pb-1">' +
+                        (isLastMonth ? '上月全月累计完成基准' : (wInfo.monthName + ' ' + axisName + ' 逐周累计走势')) +
+                        '</div>';
+                    var shipVal = 0;
+                    params.forEach(function (param) {
+                        if (param.seriesName === '出库销售额') shipVal = Number(param.value);
+                        var colorHex = param.color && param.color.colorStops ? param.color.colorStops[0].color : (typeof param.color === 'string' ? param.color : '#2E6EB5');
+                        html += '<div class="flex items-center justify-between gap-5 text-xs py-0.5">' +
+                            '<span><span style="color:' + colorHex + '">● </span>' + param.seriesName + '</span>' +
+                            '<span class="font-mono font-bold text-white">' + fmt(param.value) + ' 万元</span>' +
+                            '</div>';
+                    });
+                    if (!isLastMonth && shipVal > 0) {
+                        var diff = shipVal - lastMonthShip;
+                        var pct = ((shipVal / lastMonthShip) * 100).toFixed(1);
+                        if (diff >= 0) {
+                            html += '<div class="mt-1.5 pt-1.5 border-t border-white/15 flex items-center justify-between text-[11px]">' +
+                                '<span class="text-white/80">🚀 较上月出库全额：</span>' +
+                                '<span class="font-mono font-bold text-[#8DC63F]">已超赶 +' + fmt(diff) + ' 万元 (' + pct + '%)</span>' +
+                                '</div>';
+                        } else {
+                            html += '<div class="mt-1.5 pt-1.5 border-t border-white/15 flex items-center justify-between text-[11px]">' +
+                                '<span class="text-white/80">🎯 距离超赶上月出库：</span>' +
+                                '<span class="font-mono font-bold text-[#E87722]">还差 ' + fmt(Math.abs(diff)) + ' 万元 (已达' + pct + '%)</span>' +
+                                '</div>';
+                        }
+                    }
+                    return html;
+                }
+            },
+            legend: {
+                data: ['接单销售额', '出库销售额', '销售回款额'],
+                top: 0,
+                right: 0,
+                itemWidth: 12,
+                itemHeight: 10,
+                textStyle: { fontSize: 12, color: '#4A5870', fontWeight: 500 }
+            },
+            grid: { left: 56, right: 24, top: 38, bottom: 28 },
+            xAxis: {
+                type: 'category',
+                data: xAxisCategories,
+                axisLine: { lineStyle: { color: 'rgba(26,35,50,0.12)' } },
+                axisTick: { show: false },
+                axisLabel: {
+                    fontSize: 11.5,
+                    color: function(val) {
+                        if (val === '上月累计') return '#4A5870';
+                        return val.indexOf('月累计') !== -1 ? '#0057B8' : '#6B7A94';
+                    },
+                    fontWeight: function(val) {
+                        return (val === '上月累计' || val.indexOf('月累计') !== -1) ? '700' : '500';
+                    }
+                }
+            },
+            yAxis: {
+                type: 'value',
+                splitLine: { lineStyle: { color: 'rgba(26,35,50,0.06)', type: 'dashed' } },
+                axisLabel: { color: '#6B7A94', fontSize: 11 }
+            },
+            series: [
+                {
+                    name: '接单销售额',
+                    type: 'bar',
+                    barWidth: 15,
+                    barGap: '20%',
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#1D63B8' },
+                            { offset: 1, color: '#0E4894' }
+                        ]),
+                        borderRadius: [3, 3, 0, 0]
+                    },
+                    data: orderData
+                },
+                {
+                    name: '出库销售额',
+                    type: 'bar',
+                    barWidth: 15,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#5B97D5' },
+                            { offset: 1, color: '#82B0E0' }
+                        ]),
+                        borderRadius: [3, 3, 0, 0]
+                    },
+                    data: shipData
+                },
+                {
+                    name: '销售回款额',
+                    type: 'line',
+                    smooth: true,
+                    symbol: 'circle',
+                    symbolSize: 7,
+                    lineStyle: { color: '#5F8E68', width: 2.5 },
+                    itemStyle: { color: '#5F8E68', borderColor: '#FFFFFF', borderWidth: 2 },
+                    data: recData
+                }
+            ]
+        }, true);
+    }
+
+    /* ---------- 3. 渲染 出货销售额与毛利分析（按客户 / 按产品 / 按行业，全宽拉长） ---------- */
+    var currentDim = 'customer';
+    function switchDim(btn) {
+        document.querySelectorAll('.tab-btn').forEach(function (b) { b.classList.remove('active'); });
+        btn.classList.add('active');
+        currentDim = btn.dataset.dim;
+        renderMargin();
+    }
+
+    function renderMargin() {
+        var el = document.getElementById('margin-chart');
+        if (!el) return;
+        charts.margin = charts.margin || echarts.init(el);
+
+        var d = DATA.margin[currentDim] || [];
+        var xNames = d.map(function (x) { return x.name; });
+        var shipData = d.map(function (x) { return x.shipAmt; });
+        var profitData = d.map(function (x) { return x.amt; });
+        var rateData = d.map(function (x) { return x.rate; });
+
+        var dimTitles = { customer: '重点客户', product: '核心产品', industry: '关键行业' };
+        var titleEl = document.getElementById('margin-chart-title');
+        if (titleEl) {
+            titleEl.textContent = (dimTitles[currentDim] || '') + ' 出货销售额与毛利表现';
+        }
+
+        var isIndustry = currentDim === 'industry';
+
+        charts.margin.setOption({
+            tooltip: {
+                trigger: 'axis',
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                borderColor: 'rgba(255,255,255,0.2)',
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                axisPointer: { type: 'shadow', shadowStyle: { color: 'rgba(46,110,181,0.06)' } },
+                formatter: function (params) {
+                    var html = '<div class="font-bold mb-1.5 text-xs text-white/90 border-b border-white/20 pb-1">' +
+                        params[0].axisValue + ' 出货与毛利表现</div>';
+                    var shipVal = 0;
+                    var profitVal = 0;
+                    params.forEach(function (p) {
+                        if (p.seriesName === '出货销售额') shipVal = Number(p.value);
+                        if (p.seriesName === '毛利额') profitVal = Number(p.value);
+                        var colorHex = p.color && p.color.colorStops ? p.color.colorStops[0].color : (typeof p.color === 'string' ? p.color : '#2E6EB5');
+                        html += '<div class="flex items-center justify-between gap-5 text-xs py-0.5">' +
+                            '<span><span style="color:' + colorHex + '">● </span>' + p.seriesName + '</span>' +
+                            '<span class="font-mono font-bold text-white">' + fmt(p.value) + ' 万元</span>' +
+                            '</div>';
+                    });
+                    if (shipVal > 0 && profitVal > 0) {
+                        var rate = ((profitVal / shipVal) * 100).toFixed(1);
+                        html += '<div class="mt-1.5 pt-1.5 border-t border-white/15 flex items-center justify-between text-[11px] text-white/80">' +
+                            '<span>综合毛利率：</span>' +
+                            '<span class="font-mono font-bold text-[#8DC63F]">' + rate + '%</span>' +
+                            '</div>';
+                    }
+                    return html;
+                }
+            },
+            legend: {
+                data: ['出货销售额', '毛利额'],
+                top: 0,
+                right: 0,
+                itemWidth: 12,
+                itemHeight: 10,
+                textStyle: { fontSize: 12, color: '#4A5870', fontWeight: 500 }
+            },
+            grid: { left: 56, right: 24, top: 38, bottom: isIndustry ? 52 : 28 },
+            xAxis: {
+                type: 'category',
+                data: xNames,
+                axisLine: { lineStyle: { color: 'rgba(26,35,50,0.12)' } },
+                axisTick: { show: false },
+                axisLabel: {
+                    color: '#4A5870',
+                    interval: 0,
+                    rotate: isIndustry ? 20 : 0,
+                    fontSize: isIndustry ? 11 : 11.5,
+                    fontWeight: 500
+                }
+            },
+            yAxis: {
+                type: 'value',
+                splitLine: { lineStyle: { color: 'rgba(26,35,50,0.06)', type: 'dashed' } },
+                axisLabel: { color: '#6B7A94', fontSize: 11 }
+            },
+            series: [
+                {
+                    name: '出货销售额',
+                    type: 'bar',
+                    barWidth: isIndustry ? 12 : 18,
+                    barGap: '20%',
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#2E6EB5' },
+                            { offset: 1, color: '#5B97D5' }
+                        ]),
+                        borderRadius: [3, 3, 0, 0]
+                    },
+                    data: shipData
+                },
+                {
+                    name: '毛利额',
+                    type: 'bar',
+                    barWidth: isIndustry ? 12 : 18,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#00B2E3' },
+                            { offset: 1, color: '#6ED6EE' }
+                        ]),
+                        borderRadius: [3, 3, 0, 0]
+                    },
+                    data: profitData
+                }
+            ]
+        }, true);
+    }
+
+    /* ---------- 4. 渲染 应收账龄结构 ---------- */
+    function renderAging() {
+        var el = document.getElementById('aging-chart');
+        if (!el) return;
+        charts.aging = charts.aging || echarts.init(el);
+
+        var a = DATA.aging;
+        var colors = ['#5F8E68', '#6B8EA8', '#8FAFC9', '#A8C5DD', '#E87722', '#D0021B'];
+
+        charts.aging.setOption({
+            tooltip: {
+                trigger: 'item',
+                backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                textStyle: { color: '#FFFFFF', fontSize: 12 },
+                formatter: '{b}: <b>{c} 万元</b>'
+            },
+            legend: { show: false },
+            grid: { left: 8, right: 48, top: 10, bottom: 0, containLabel: true },
+            xAxis: { type: 'value', splitLine: { show: false }, axisLabel: { show: false } },
+            yAxis: {
+                type: 'category',
+                inverse: true,
+                data: a.map(function (x) { return x.name; }),
+                axisLine: { show: false },
+                axisTick: { show: false },
+                axisLabel: { color: '#4A5870', fontSize: 11.5, fontWeight: 500 }
+            },
+            series: [{
+                type: 'bar',
+                barWidth: 14,
+                itemStyle: { borderRadius: [0, 3, 3, 0] },
+                label: {
+                    show: true,
+                    position: 'right',
+                    color: '#1A2332',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    formatter: '{c}万'
+                },
+                data: a.map(function (x, i) {
+                    return {
+                        value: x.value,
+                        itemStyle: { color: colors[i] || '#2E6EB5' }
+                    };
+                })
+            }]
+        }, true);
+
+        var total = a.reduce(function (s, x) { return s + x.value; }, 0);
+        var agingDom = document.getElementById('aging-kpis');
+        if (agingDom) {
+            agingDom.innerHTML = [
+                { l: '应收总额', v: fmt(total) + '万', c: '#1A2332' },
+                { l: '未到期占比', v: (a[0].value / total * 100).toFixed(1) + '%', c: '#5F8E68' },
+                { l: '超期占比', v: (a[a.length - 1].value / total * 100).toFixed(1) + '%', c: '#D0021B' }
+            ].map(function (x) {
+                return '<div class="kpi-box text-center p-2 rounded-lg bg-[rgba(26,35,50,0.03)] border border-[rgba(26,35,50,0.06)]">' +
+                    '<div class="text-[11px] text-[#6B7A94] mb-0.5">' + x.l + '</div>' +
+                    '<div class="text-base font-bold mono-num" style="color:' + x.c + '">' + x.v + '</div>' +
+                    '</div>';
+            }).join('');
+        }
+    }
+
+    /* ---------- 5. 渲染 逾期应收分析与原因归因诊断 ---------- */
+    function renderOverdue() {
+        var o = DATA.overdue;
+        
+        // 渲染 3 大核心风控小指标
+        var items = [
+            { l: '逾期总额', v: fmt(o.total), u: '万', cls: 'text-[#E87722]', bg: 'bg-[#E87722]/8 border-[#E87722]/20' },
+            { l: '90天以上', v: fmt(o.over90), u: '万', cls: 'text-[#1A2332]', bg: 'bg-[rgba(26,35,50,0.04)] border-[rgba(26,35,50,0.08)]' },
+            { l: '180天高危', v: fmt(o.over180), u: '万', cls: 'text-[#D0021B]', bg: 'bg-[#D0021B]/8 border-[#D0021B]/20' }
+        ];
+        var overdueDom = document.getElementById('overdue-kpis');
+        if (overdueDom) {
+            overdueDom.innerHTML = items.map(function (x) {
+                return '<div class="p-2.5 rounded-lg border ' + x.bg + ' text-center">' +
+                    '<div class="text-[11px] font-semibold text-[#6B7A94] mb-0.5">' + x.l + '</div>' +
+                    '<div class="text-base font-bold ' + x.cls + ' mono-num">' + x.v + '<span class="text-[10px] text-[#6B7A94] ml-0.5">' + x.u + '</span></div>' +
+                    '</div>';
+            }).join('');
+        }
+
+        // 渲染 3 大逾期类别明细列表 (普通、外贸、机组)
+        var cats = o.categories || o.reasons || [];
+        var reasonListDom = document.getElementById('overdue-reason-list');
+        if (reasonListDom && cats.length) {
+            reasonListDom.innerHTML = cats.map(function (r) {
+                return '<div class="space-y-1.5 p-2 rounded-lg bg-[rgba(26,35,50,0.02)] border border-[rgba(26,35,50,0.05)]">' +
+                    '<div class="flex items-center justify-between text-xs">' +
+                    '<div class="flex items-center gap-2 font-bold text-[#1A2332]">' +
+                    '<span class="w-2.5 h-2.5 rounded-full flex-shrink-0" style="background:' + r.color + '"></span>' +
+                    '<span>' + r.name + '类别</span>' +
+                    '</div>' +
+                    '<div class="font-mono font-bold text-[#1A2332]">' + fmt(r.value) + '万 <span class="text-[#6B7A94] font-semibold text-[11px]">(' + r.percent + '%)</span></div>' +
+                    '</div>' +
+                    '<div class="w-full bg-slate-200/70 rounded-full h-2 overflow-hidden">' +
+                    '<div class="h-2 rounded-full transition-all duration-500" style="width:' + r.percent + '%; background:' + r.color + '"></div>' +
+                    '</div>' +
+                    '</div>';
+            }).join('');
+        }
+
+        // 渲染 ECharts 环形图 (普通、外贸、机组)
+        var chartDom = document.getElementById('overdue-reason-chart');
+        if (chartDom && cats.length) {
+            charts.overdueReason = charts.overdueReason || echarts.init(chartDom);
+            charts.overdueReason.setOption({
+                tooltip: {
+                    trigger: 'item',
+                    backgroundColor: 'rgba(26, 35, 50, 0.92)',
+                    textStyle: { color: '#FFFFFF', fontSize: 11.5 },
+                    formatter: '{b}类别逾期<br/><b>{c} 万元</b> ({d}%)'
+                },
+                legend: { show: false },
+                series: [{
+                    name: '逾期业务类别',
+                    type: 'pie',
+                    radius: ['48%', '75%'],
+                    center: ['50%', '50%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: {
+                        borderRadius: 4,
+                        borderColor: '#FFFFFF',
+                        borderWidth: 2
+                    },
+                    label: { show: false },
+                    emphasis: {
+                        label: {
+                            show: true,
+                            fontSize: 12,
+                            fontWeight: 'bold',
+                            formatter: '{b}\n{d}%'
+                        }
+                    },
+                    data: cats.map(function (r) {
+                        return { value: r.value, name: r.name, itemStyle: { color: r.color } };
+                    })
+                }]
+            }, true);
+        }
+    }
+
+    /* ---------- 6. 渲染 TOP10 客户逾期排名 ---------- */
+    function renderRanks() {
+        var rows = DATA.ranks.slice().sort(function (a, b) { return sortDesc ? b.amt - a.amt : a.amt - b.amt; });
+        var total = DATA.ranks.reduce(function (s, r) { return s + r.amt; }, 0);
+        var rankDom = document.getElementById('rank-tbody');
+        if (rankDom) {
+            rankDom.innerHTML = rows.map(function (r, i) {
+                var risk = r.amt > 150 ? ['status-danger', '高风险'] : r.amt > 80 ? ['status-warning', '中风险'] : ['status-info', '低风险'];
+                return '<tr class="hover:bg-[#0057B8]/5 transition-colors">' +
+                    '<td class="text-center py-2.5 px-2"><span class="rank-badge ' + (i < 3 ? 'rank-' + (i + 1) : '') + '">' + (i + 1) + '</span></td>' +
+                    '<td class="py-2.5 px-3 text-[#1A2332] font-semibold text-xs">' + r.name + '</td>' +
+                    '<td class="py-2.5 px-3 text-right font-bold text-[#E87722] mono-num text-xs">' + fmt(r.amt) + '</td>' +
+                    '<td class="py-2.5 px-3 text-right text-[#6B7A94] mono-num text-xs">' + (r.amt / total * 100).toFixed(1) + '%</td>' +
+                    '<td class="py-2.5 px-3 text-right text-[#6B7A94] mono-num text-xs">' + r.days + '</td>' +
+                    '<td class="py-2.5 px-3 text-center"><span class="status-tag ' + risk[0] + '">' + risk[1] + '</span></td>' +
+                    '</tr>';
+            }).join('');
+        }
+    }
+
+    function toggleSort() { sortDesc = !sortDesc; renderRanks(); }
+
+    /* ---------- 7. 渲染 新下单客户 ---------- */
+    function renderNewCustomers() {
+        var nc = DATA.newCustomers;
+        var newKpiDom = document.getElementById('newcust-kpis');
+        if (newKpiDom) {
+            newKpiDom.innerHTML =
+                '<div class="kpi-box text-center p-3 rounded-lg bg-[rgba(26,35,50,0.03)] border border-[rgba(26,35,50,0.06)]">' +
+                '<div class="text-xs text-[#6B7A94] mb-0.5">本期新拓客户数</div>' +
+                '<div class="text-xl font-bold text-[#2E6EB5] mono-num">' + nc.count + '<span class="text-xs ml-1 font-semibold text-[#6B7A94]">家</span></div>' +
+                '</div>' +
+                '<div class="kpi-box text-center p-3 rounded-lg bg-[rgba(26,35,50,0.03)] border border-[rgba(26,35,50,0.06)]">' +
+                '<div class="text-xs text-[#6B7A94] mb-0.5">首单出库合计</div>' +
+                '<div class="text-xl font-bold text-[#5F8E68] mono-num">' + fmt(nc.totalAmt) + '<span class="text-xs ml-1 font-semibold text-[#6B7A94]">元</span></div>' +
+                '</div>';
+        }
+
+        var newTbody = document.getElementById('newcust-tbody');
+        if (newTbody) {
+            newTbody.innerHTML = nc.list.map(function (c) {
+                return '<tr class="hover:bg-[#0057B8]/5 transition-colors">' +
+                    '<td class="py-2.5 px-3 text-[#1A2332] font-semibold text-xs">' + c.name + '</td>' +
+                    '<td class="py-2.5 px-3 text-right font-bold text-[#5F8E68] mono-num text-xs">' + fmt(c.amt) + ' 元</td>' +
+                    '<td class="py-2.5 px-3 text-right text-[#6B7A94] mono-num text-xs">' + c.date + '</td>' +
+                    '</tr>';
+            }).join('');
+        }
+    }
+
+    /* ---------- 8. 年月联动事件处理 ---------- */
+    function onPeriodChange() {
+        var p = BDLayout.getPeriod();
+        var mIdx = parseInt(p.month) || 9;
+        var factor = 0.9 + (mIdx % 5) * 0.04;
+        DATA.kpi.orderAmt = Math.round(19359 * factor);
+        DATA.kpi.shipAmt = Math.round(17910 * factor);
+        DATA.kpi.receivedAmt = Math.round(16840 * factor);
+        DATA.kpi.monthRate = +(95.8 * factor).toFixed(1);
+        DATA.overdue.total = Math.round(1030 * (1.15 - (mIdx % 4) * 0.05));
+        renderKPIs();
+        renderTrend();
+        renderMargin();
+        renderAging();
+        renderOverdue();
+        renderRanks();
+    }
+    window.onPeriodChange = onPeriodChange;
+    window.switchDim = switchDim;
+    window.toggleSort = toggleSort;
+
+    // 页面初始化
+    function initSalesCenter() {
+        BDLayout.render({ active: "sales-overview" });
+        renderKPIs();
+        renderTrend();
+        renderAging();
+        renderOverdue();
+        renderRanks();
+        renderMargin();
+        renderNewCustomers();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initSalesCenter);
+    } else {
+        initSalesCenter();
+    }
+
+    window.addEventListener('resize', function () {
+        Object.keys(charts).forEach(function (k) {
+            try { charts[k] && charts[k].resize && charts[k].resize(); } catch (e) {}
+        });
+    });
+    </script>
+</body>
+</html>

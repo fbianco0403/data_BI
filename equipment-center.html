@@ -1,0 +1,626 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>设备与能耗分析 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        #kpi-cards .sales-overview-cell { padding: 8px 3px !important; }
+        #kpi-cards .kpi-label { font-size: 11px !important; letter-spacing: -0.2px; }
+        #kpi-cards .sales-overview-value { font-size: 16px !important; }
+
+        .table-scroll-container::-webkit-scrollbar {
+            width: 5px;
+            height: 5px;
+        }
+        .table-scroll-container::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.03);
+            border-radius: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb {
+            background: rgba(0, 87, 184, 0.25);
+            border-radius: 4px;
+        }
+        .table-scroll-container::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 87, 184, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <main class="flex-1 overflow-auto">
+            <!-- 顶部导航条 (与企业经营驾驶舱 100% 相同) -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5">
+                <div class="flex items-center justify-between">
+                    <!-- 左侧：页面标题 -->
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">生产分析中心 · 设备与能耗</span>
+                    </div>
+
+                    <!-- 右侧：年月选择胶囊 (与驾驶舱 100% 保持一致：动态近三年与未来月份拦截) -->
+                    <div class="flex items-center">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <!-- 年份选择触发器 -->
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 年份下拉菜单 (动态渲染近三年) -->
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+
+                                <!-- 月份选择触发器 -->
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+
+                                    <!-- 月份下拉菜单 (动态禁用未来月份) -->
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-32 py-1.5">
+                                        <div class="px-3 py-1 border-b border-slate-100 flex items-center justify-between">
+                                            <span class="text-[10px] text-[#0057B8] font-bold">选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div id="monthDropdownOptions" class="max-h-56 overflow-y-auto"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+                <!-- 模块 1：设备与能耗运营全景（9大核心指标对称排布） -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">设备与能耗运营全景</h3>
+                        </div>
+                        <div class="sales-overview-grid mb-3" id="kpi-cards"></div>
+                    </div>
+                </div>
+
+                <!-- 模块 2：重点设备 OEE 趋势与能耗月度走势 -->
+                <div class="grid grid-cols-12 gap-3.5">
+                    <!-- 左：数采设备OEE每日趋势 -->
+                    <div class="col-span-12 lg:col-span-7 card">
+                        <div class="card-inner">
+                            <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                <h3 class="section-title">数采设备OEE每日趋势</h3>
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-xs text-[#6B7A94] font-medium">数采设备:</span>
+                                    <div class="relative inline-block">
+                                        <select id="equipOeeSelect" onchange="onEquipOeeChange(this.value)" class="text-xs font-semibold text-[#1A2332] bg-white/95 border border-slate-200 rounded-md px-2.5 py-1 pr-6 focus:outline-none focus:border-[#0057B8] shadow-2xs appearance-none cursor-pointer">
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-[#0057B8]">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="oeeTrendChart" class="chart-box" style="height: 250px; min-height: 250px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 右：能耗设备功率和能耗 -->
+                    <div class="col-span-12 lg:col-span-5 card">
+                        <div class="card-inner">
+                            <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                                <h3 class="section-title">能耗设备功率和能耗</h3>
+                                <div class="relative inline-block">
+                                    <select id="energyPeriodSelect" onchange="onEnergyPeriodChange(this.value)" class="text-xs font-semibold text-[#1A2332] bg-white/95 border border-slate-200 rounded-md px-2.5 py-1 pr-6 focus:outline-none focus:border-[#0057B8] shadow-2xs appearance-none cursor-pointer">
+                                        <option value="WEEK" selected>当周 (09.14 - 09.20)</option>
+                                        <option value="MON">周一 (09.14 今天)</option>
+                                        <option value="TUE">周二 (09.15)</option>
+                                        <option value="WED">周三 (09.16)</option>
+                                        <option value="THU">周四 (09.17)</option>
+                                        <option value="FRI">周五 (09.18)</option>
+                                        <option value="SAT">周六 (09.19)</option>
+                                        <option value="SUN">周日 (09.20)</option>
+                                    </select>
+                                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-[#0057B8]">
+                                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <div id="energyChart" class="chart-box" style="height: 250px; min-height: 250px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 3：数采设备产量每日趋势 -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2 flex-wrap gap-2">
+                            <h3 class="section-title">数采设备产量每日趋势</h3>
+                            <div class="flex items-center gap-3.5">
+                                <div class="flex items-center gap-1.5">
+                                    <span class="text-xs text-[#6B7A94] font-medium">设备类型:</span>
+                                    <div class="relative inline-block">
+                                        <select id="outputEquipTypeSelect" onchange="onOutputEquipTypeChange(this.value)" class="text-xs font-semibold text-[#1A2332] bg-white/95 border border-slate-200 rounded-md px-2.5 py-1 pr-6 focus:outline-none focus:border-[#0057B8] shadow-2xs appearance-none cursor-pointer">
+                                            <option value="BRA" selected>钎焊炉</option>
+                                            <option value="PRS">油压机</option>
+                                            <option value="HEL">氦检</option>
+                                            <option value="ALL">全部设备</option>
+                                        </select>
+                                        <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-1 text-[#0057B8]">
+                                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="flex items-center gap-3 text-xs text-[#6B7A94]">
+                                    <span>今日日产：<b id="todayOutputVal" class="text-[#0057B8]">17.5 吨</b></span>
+                                    <span>月度日均：<b id="avgOutputVal" class="text-[#1A2332]">16.8 吨</b></span>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="dailyOutputChart" class="chart-box" style="height: 220px; min-height: 220px;"></div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script>
+    var charts = {};
+
+    var KPIS = [
+        { label: '能耗设备总数', value: '32<span class="unit">台</span>', valCls: 'val-blue', formula: '接入能耗计量的高功耗机台总数' },
+        { label: '能耗设备在线数', value: '30<span class="unit">台</span>', valCls: 'val-good', formula: '实时能耗心跳在线设备数' },
+        { label: '能耗设备离线数', value: '2<span class="unit">台</span>', valCls: 'val-orange', formula: '计划停机或维保离线设备数' },
+        { label: '能耗设备总能耗', value: '48.6<span class="unit">万度</span>', valCls: 'val-blue', formula: '重点能耗设备当月累计电耗总计' },
+        { label: '数采设备总数', value: '68<span class="unit">台</span>', valCls: 'val-blue', formula: '接入 PLC 工业物联网数采设备总数' },
+        { label: '数采设备在线数', value: '65<span class="unit">台</span>', valCls: 'val-good', formula: '数采实时心跳在线设备数' },
+        { label: '数采设备离线数', value: '3<span class="unit">台</span>', valCls: 'val-orange', formula: '检修或待料离线数采设备数' },
+        { label: '模具总数', value: '156<span class="unit">套</span>', valCls: 'val-blue', formula: '冲压成型与钎焊定位模具总套数' },
+        { label: '数采设备综合OEE', value: '92.8%', valCls: 'val-good', formula: '联网数采设备实际运行综合稼动率' }
+    ];
+
+    var EQUIP_LIST = [
+        { no: 'EQ-BRA-01', name: '真空钎焊炉 1#（大型高温）', ws: '钎焊车间', status: '在线运行', load: '94.2%', oee: '95.6%', energy: '148,200', health: '优良', nextPm: '2026-09-18', owner: '王建军' },
+        { no: 'EQ-BRA-02', name: '真空钎焊炉 2#（中型连续）', ws: '钎焊车间', status: '在线运行', load: '91.8%', oee: '93.2%', energy: '124,500', health: '优良', nextPm: '2026-09-22', owner: '李志强' },
+        { no: 'EQ-BRA-03', name: '真空钎焊炉 3#（高真空实验）', ws: '钎焊车间', status: '待机空载', load: '65.0%', oee: '88.4%', energy: '62,400', health: '良好', nextPm: '2026-09-28', owner: '刘明' },
+        { no: 'EQ-PRS-01', name: '4000T 大型数控油压机', ws: '板片车间', status: '在线运行', load: '96.5%', oee: '92.4%', energy: '86,300', health: '优良', nextPm: '2026-09-15', owner: '陈铁柱' },
+        { no: 'EQ-PRS-02', name: '2500T 快速成型冲压机', ws: '板片车间', status: '在线运行', load: '92.0%', oee: '90.8%', energy: '54,200', health: '良好', nextPm: '2026-09-16', owner: '张海波' },
+        { no: 'EQ-HEL-01', name: '全自动高压氦检漏仪 A线', ws: '总装车间', status: '在线运行', load: '95.0%', oee: '94.8%', energy: '18,500', health: '优良', nextPm: '2026-09-20', owner: '周敏' },
+        { no: 'EQ-HEL-02', name: '全自动高压氦检漏仪 B线', ws: '总装车间', status: '在线运行', load: '93.5%', oee: '93.6%', energy: '17,800', health: '优良', nextPm: '2026-09-25', owner: '吴晨' },
+        { no: 'EQ-LSR-01', name: '高精度光纤激光焊接机器人', ws: '可拆车间', status: '计划检修', load: '0.0%', oee: '84.2%', energy: '8,600', health: '维保中', nextPm: '2026-09-04', owner: '赵德全' }
+    ];
+
+    function renderKPIs() {
+        var el = document.getElementById('kpi-cards');
+        if (!el) return;
+        el.innerHTML = KPIS.map(function (k) {
+            return '<div class="kpi-cell sales-overview-cell cursor-default" title="' + k.label + ' · ' + k.formula + '">' +
+                '<div class="kpi-label">' + k.label + '</div>' +
+                '<div class="kpi-value sales-overview-value ' + k.valCls + '">' + k.value + '</div>' +
+                '</div>';
+        }).join('');
+    }
+
+    var currentEquipId = 'EQ-BRA-01'; // 默认第一台设备
+
+    function initEquipSelect() {
+        var sel = document.getElementById('equipOeeSelect');
+        if (!sel) return;
+        var opts = [
+            { no: 'ALL', name: '全厂数采设备综合' }
+        ].concat(EQUIP_LIST);
+        sel.innerHTML = opts.map(function (eq) {
+            return '<option value="' + eq.no + '">' + eq.name + '</option>';
+        }).join('');
+        sel.value = currentEquipId;
+    }
+
+    function onEquipOeeChange(val) {
+        currentEquipId = val;
+        renderOeeTrendChart();
+    }
+    window.onEquipOeeChange = onEquipOeeChange;
+
+    function renderOeeTrendChart() {
+        var dom = document.getElementById('oeeTrendChart');
+        if (!dom) return;
+        charts.oee = charts.oee || echarts.init(dom);
+
+        var p = BDLayout.getPeriod();
+        var y = parseInt(p.year) || 2026;
+        var m = parseInt(p.month) || 9;
+        var daysInMonth = new Date(y, m, 0).getDate();
+
+        // 严格遵循规则：仅展示对应月份已发生的历史日期，未来的日期不可展示
+        var now = new Date();
+        var sysYear = now.getFullYear();
+        var sysMonth = now.getMonth() + 1;
+        var sysDay = now.getDate(); // 当前系统日期
+
+        var maxDay = daysInMonth;
+        if (y === sysYear && m === sysMonth) {
+            maxDay = Math.min(sysDay, daysInMonth);
+        } else if (y > sysYear || (y === sysYear && m > sysMonth)) {
+            maxDay = 0;
+        }
+
+        var days = [];
+        var oeeData = [];
+        var targetEquip = EQUIP_LIST.find(function (e) { return e.no === currentEquipId; });
+        var baseOee = targetEquip ? parseFloat(targetEquip.oee) : 92.8;
+        var equipName = targetEquip ? targetEquip.name : '全厂数采设备综合';
+
+        for (var d = 1; d <= maxDay; d++) {
+            days.push(d + '日');
+            var wave = Math.sin(d * 0.9 + m) * 1.8 + Math.cos(d * 1.7) * 1.1;
+            var val = Math.min(99.2, Math.max(78.5, +(baseOee + wave).toFixed(1)));
+            oeeData.push(val);
+        }
+
+        charts.oee.setOption({
+            tooltip: {
+                trigger: 'axis',
+                formatter: function (params) {
+                    var pt = params[0];
+                    if (!pt) return '';
+                    var val = pt.value;
+                    return '<div style="font-size:12px;padding:2px 4px;">' +
+                        '<div style="font-weight:bold;margin-bottom:4px;color:#1A2332;">' + m + '月' + pt.axisValue + ' · ' + equipName + '</div>' +
+                        '<div>实际稼动率 OEE：<b style="color:#0057B8;">' + val + '%</b></div>' +
+                        '</div>';
+                }
+            },
+            legend: {
+                data: [equipName],
+                top: 0,
+                right: 10,
+                textStyle: { fontSize: 11, color: '#4A5870' }
+            },
+            grid: { left: 45, right: 20, top: 35, bottom: 25 },
+            xAxis: {
+                type: 'category',
+                data: days,
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                axisLabel: {
+                    color: '#6B7A94',
+                    fontSize: 10,
+                    interval: maxDay <= 15 ? 0 : function (idx) {
+                        return idx === 0 || (idx + 1) % 5 === 0 || idx === maxDay - 1;
+                    }
+                }
+            },
+            yAxis: {
+                type: 'value',
+                min: 75,
+                max: 100,
+                axisLabel: { formatter: '{value}%', color: '#6B7A94', fontSize: 11 },
+                splitLine: { lineStyle: { color: '#F3F4F6' } }
+            },
+            series: [
+                {
+                    name: equipName,
+                    type: 'line',
+                    data: oeeData,
+                    smooth: true,
+                    showSymbol: false,
+                    symbolSize: 6,
+                    itemStyle: { color: '#0057B8' },
+                    lineStyle: { width: 2.5 },
+                    areaStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: 'rgba(0, 87, 184, 0.22)' },
+                            { offset: 1, color: 'rgba(0, 87, 184, 0.02)' }
+                        ])
+                    }
+                }
+            ]
+        }, true);
+    }
+
+    var currentEnergyPeriod = 'WEEK'; // 默认当周
+
+    function onEnergyPeriodChange(val) {
+        currentEnergyPeriod = val;
+        renderEnergyChart();
+    }
+    window.onEnergyPeriodChange = onEnergyPeriodChange;
+
+    function renderEnergyChart() {
+        var dom = document.getElementById('energyChart');
+        if (!dom) return;
+        charts.energy = charts.energy || echarts.init(dom);
+
+        var p = BDLayout.getPeriod();
+        var m = parseInt(p.month) || 9;
+
+        var xData = [];
+        var powerData = [];
+        var energyData = [];
+        var energyName = '用电能耗 (万kWh)';
+        var isWeek = (currentEnergyPeriod === 'WEEK');
+
+        if (isWeek) {
+            // 当周 (周一至周日)
+            xData = ['周一\n9.14', '周二\n9.15', '周三\n9.16', '周四\n9.17', '周五\n9.18', '周六\n9.19', '周日\n9.20'];
+            powerData = [1420, 1385, 1450, 1410, 1475, 1020, 850];
+            energyData = [1.62, 1.58, 1.65, 1.60, 1.68, 1.15, 0.95];
+            energyName = '用电能耗 (万kWh)';
+        } else {
+            // 单日 24 小时功率与分时能耗
+            var dayMap = {
+                'MON': { name: '周一 (09.14)', basePwr: 1420, baseEng: 135 },
+                'TUE': { name: '周二 (09.15)', basePwr: 1385, baseEng: 131 },
+                'WED': { name: '周三 (09.16)', basePwr: 1450, baseEng: 138 },
+                'THU': { name: '周四 (09.17)', basePwr: 1410, baseEng: 133 },
+                'FRI': { name: '周五 (09.18)', basePwr: 1475, baseEng: 140 },
+                'SAT': { name: '周六 (09.19)', basePwr: 1020, baseEng: 95 },
+                'SUN': { name: '周日 (09.20)', basePwr: 850, baseEng: 79 }
+            };
+            var selDay = dayMap[currentEnergyPeriod] || dayMap['MON'];
+            var hours = ['02:00', '04:00', '06:00', '08:00', '10:00', '12:00', '14:00', '16:00', '18:00', '20:00', '22:00', '24:00'];
+            var pwrCurve = [0.58, 0.55, 0.68, 1.05, 1.15, 0.88, 1.18, 1.12, 0.98, 1.08, 0.78, 0.60];
+            xData = hours;
+            for (var i = 0; i < hours.length; i++) {
+                var pVal = Math.round(selDay.basePwr * pwrCurve[i]);
+                var eVal = Math.round(selDay.baseEng * pwrCurve[i] * 10);
+                powerData.push(pVal);
+                energyData.push(eVal);
+            }
+            energyName = '用电能耗 (kWh)';
+        }
+
+        charts.energy.setOption({
+            tooltip: {
+                trigger: 'axis',
+                formatter: function (params) {
+                    var xName = params[0].axisValue.replace('\n', ' ');
+                    var pwr = '', eng = '';
+                    params.forEach(function (pt) {
+                        if (pt.seriesName === '运行功率') pwr = pt.value + ' kW';
+                        if (pt.seriesName.indexOf('用电能耗') >= 0) eng = pt.value + (isWeek ? ' 万kWh' : ' kWh');
+                    });
+                    return '<div style="font-size:12px;padding:2px 4px;">' +
+                        '<div style="font-weight:bold;margin-bottom:4px;color:#1A2332;">' + xName + ' 能耗工况</div>' +
+                        '<div>运行功率：<b style="color:#E87722;">' + pwr + '</b></div>' +
+                        '<div>' + energyName + '：<b style="color:#0057B8;">' + eng + '</b></div>' +
+                        '</div>';
+                }
+            },
+            legend: { show: false },
+            grid: { left: 45, right: 40, top: 15, bottom: 25 },
+            xAxis: {
+                type: 'category',
+                data: xData,
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                axisLabel: { color: '#6B7A94', fontSize: 10 }
+            },
+            yAxis: [
+                {
+                    type: 'value',
+                    axisLabel: { color: '#6B7A94', fontSize: 10 },
+                    splitLine: { lineStyle: { color: '#F3F4F6' } }
+                },
+                {
+                    type: 'value',
+                    axisLabel: { color: '#6B7A94', fontSize: 10 },
+                    splitLine: { show: false }
+                }
+            ],
+            series: [
+                {
+                    name: energyName,
+                    type: 'bar',
+                    yAxisIndex: 1,
+                    barWidth: isWeek ? 14 : 10,
+                    data: energyData,
+                    itemStyle: {
+                        color: new echarts.graphic.LinearGradient(0, 0, 0, 1, [
+                            { offset: 0, color: '#0057B8' },
+                            { offset: 1, color: 'rgba(0, 87, 184, 0.4)' }
+                        ]),
+                        borderRadius: [3, 3, 0, 0]
+                    }
+                },
+                {
+                    name: '运行功率',
+                    type: 'line',
+                    yAxisIndex: 0,
+                    data: powerData,
+                    smooth: true,
+                    showSymbol: true,
+                    symbolSize: 4,
+                    itemStyle: { color: '#E87722' },
+                    lineStyle: { width: 2.2 }
+                }
+            ]
+        }, true);
+    }
+
+    var currentOutputType = 'BRA'; // 默认钎焊炉
+
+    function onOutputEquipTypeChange(val) {
+        currentOutputType = val;
+        renderDailyOutputChart();
+    }
+    window.onOutputEquipTypeChange = onOutputEquipTypeChange;
+
+    function renderDailyOutputChart() {
+        var dom = document.getElementById('dailyOutputChart');
+        if (!dom) return;
+        charts.daily = charts.daily || echarts.init(dom);
+
+        var p = BDLayout.getPeriod();
+        var y = parseInt(p.year) || 2026;
+        var m = parseInt(p.month) || 9;
+        var daysInMonth = new Date(y, m, 0).getDate();
+
+        // 严格遵循规则：仅展示对应月份历史已发生日期，未来日期不予展示
+        var now = new Date();
+        var sysYear = now.getFullYear();
+        var sysMonth = now.getMonth() + 1;
+        var sysDay = now.getDate();
+
+        var maxDay = daysInMonth;
+        if (y === sysYear && m === sysMonth) {
+            maxDay = Math.min(sysDay, daysInMonth);
+        } else if (y > sysYear || (y === sysYear && m > sysMonth)) {
+            maxDay = 0;
+        }
+
+        var days = [];
+        for (var i = 1; i <= maxDay; i++) {
+            days.push(i + '日');
+        }
+
+        var series = [];
+        var legendData = [];
+        var todayValEl = document.getElementById('todayOutputVal');
+        var avgValEl = document.getElementById('avgOutputVal');
+
+        if (currentOutputType === 'BRA') {
+            legendData = ['真空钎焊炉 1#', '真空钎焊炉 2#', '真空钎焊炉 3#'];
+            var d1 = [], d2 = [], d3 = [];
+            for (var i = 1; i <= maxDay; i++) {
+                d1.push(+(8.5 + Math.sin(i * 0.8 + m) * 1.5 + (i % 2) * 0.6).toFixed(1));
+                d2.push(+(6.8 + Math.cos(i * 0.7 + m) * 1.2 + (i % 3) * 0.4).toFixed(1));
+                d3.push(+(2.2 + Math.sin((i + m) * 0.5) * 0.6).toFixed(1));
+            }
+            series = [
+                { name: '真空钎焊炉 1#', type: 'bar', stack: 'total', data: d1, itemStyle: { color: '#0057B8' } },
+                { name: '真空钎焊炉 2#', type: 'bar', stack: 'total', data: d2, itemStyle: { color: '#2FA984' } },
+                { name: '真空钎焊炉 3#', type: 'bar', stack: 'total', data: d3, itemStyle: { color: '#E87722', borderRadius: [2, 2, 0, 0] } }
+            ];
+            if (todayValEl) todayValEl.innerText = (17.5 + (m % 3) * 0.5).toFixed(1) + ' 吨';
+            if (avgValEl) avgValEl.innerText = (16.8 + (m % 4) * 0.3).toFixed(1) + ' 吨';
+        } else if (currentOutputType === 'PRS') {
+            legendData = ['4000T 数控油压机', '2500T 快速冲压机'];
+            var d1 = [], d2 = [];
+            for (var i = 1; i <= maxDay; i++) {
+                d1.push(+(7.2 + Math.sin(i * 0.9 + m) * 1.4 + (i % 3) * 0.5).toFixed(1));
+                d2.push(+(4.8 + Math.cos(i * 0.8 + m) * 0.9 + (i % 2) * 0.4).toFixed(1));
+            }
+            series = [
+                { name: '4000T 数控油压机', type: 'bar', stack: 'total', data: d1, itemStyle: { color: '#0057B8' } },
+                { name: '2500T 快速冲压机', type: 'bar', stack: 'total', data: d2, itemStyle: { color: '#8DC63F', borderRadius: [2, 2, 0, 0] } }
+            ];
+            if (todayValEl) todayValEl.innerText = (12.0 + (m % 3) * 0.4).toFixed(1) + ' 吨';
+            if (avgValEl) avgValEl.innerText = (11.5 + (m % 4) * 0.2).toFixed(1) + ' 吨';
+        } else if (currentOutputType === 'HEL') {
+            legendData = ['氦检漏仪 A线', '氦检漏仪 B线'];
+            var d1 = [], d2 = [];
+            for (var i = 1; i <= maxDay; i++) {
+                d1.push(+(4.5 + Math.sin(i * 0.7 + m) * 0.8 + (i % 2) * 0.3).toFixed(1));
+                d2.push(+(3.2 + Math.cos(i * 0.6 + m) * 0.6 + (i % 3) * 0.2).toFixed(1));
+            }
+            series = [
+                { name: '氦检漏仪 A线', type: 'bar', stack: 'total', data: d1, itemStyle: { color: '#0057B8' } },
+                { name: '氦检漏仪 B线', type: 'bar', stack: 'total', data: d2, itemStyle: { color: '#2FA984', borderRadius: [2, 2, 0, 0] } }
+            ];
+            if (todayValEl) todayValEl.innerText = (7.7 + (m % 2) * 0.3).toFixed(1) + ' 吨';
+            if (avgValEl) avgValEl.innerText = (7.3 + (m % 3) * 0.2).toFixed(1) + ' 吨';
+        } else {
+            legendData = ['钎焊炉系列', '油压机系列', '氦检漏仪系列'];
+            var d1 = [], d2 = [], d3 = [];
+            for (var i = 1; i <= maxDay; i++) {
+                d1.push(+(17.5 + Math.sin(i + m) * 2.0 + (i % 3)).toFixed(1));
+                d2.push(+(12.0 + Math.cos(i + m) * 1.5 + (i % 2)).toFixed(1));
+                d3.push(+(7.7 + Math.sin((i + m) * 0.5) * 1.0).toFixed(1));
+            }
+            series = [
+                { name: '钎焊炉系列', type: 'bar', stack: 'total', data: d1, itemStyle: { color: '#0057B8' } },
+                { name: '油压机系列', type: 'bar', stack: 'total', data: d2, itemStyle: { color: '#8DC63F' } },
+                { name: '氦检漏仪系列', type: 'bar', stack: 'total', data: d3, itemStyle: { color: '#6B7A94', borderRadius: [2, 2, 0, 0] } }
+            ];
+            if (todayValEl) todayValEl.innerText = (38.5 + (m % 4) * 0.6).toFixed(1) + ' 吨';
+            if (avgValEl) avgValEl.innerText = (36.2 + (m % 5) * 0.4).toFixed(1) + ' 吨';
+        }
+
+        charts.daily.setOption({
+            tooltip: {
+                trigger: 'axis',
+                axisPointer: { type: 'shadow' },
+                formatter: function (params) {
+                    var total = 0;
+                    var res = '<div style="font-size:12px;padding:2px 4px;">' +
+                        '<div style="font-weight:bold;margin-bottom:4px;color:#1A2332;">' + m + '月' + params[0].axisValue + ' 产量明细</div>';
+                    params.forEach(function (p) {
+                        total += parseFloat(p.value) || 0;
+                        res += '<div style="display:flex;justify-content:space-between;gap:12px;margin:2px 0;">' +
+                            '<span>' + p.marker + p.seriesName + '</span>' +
+                            '<b style="color:#1A2332;">' + p.value + ' 吨</b>' +
+                            '</div>';
+                    });
+                    if (params.length > 1) {
+                        res += '<div style="border-top:1px solid #E5E7EB;margin-top:4px;padding-top:4px;display:flex;justify-content:space-between;">' +
+                            '<span style="font-weight:bold;color:#6B7A94;">合计日产:</span>' +
+                            '<b style="color:#0057B8;">' + total.toFixed(1) + ' 吨</b>' +
+                            '</div>';
+                    }
+                    res += '</div>';
+                    return res;
+                }
+            },
+            legend: { data: legendData, top: 0, right: 0, textStyle: { fontSize: 11 } },
+            grid: { left: 40, right: 20, top: 30, bottom: 25 },
+            xAxis: {
+                type: 'category',
+                data: days,
+                axisLine: { lineStyle: { color: '#E5E7EB' } },
+                axisLabel: {
+                    color: '#6B7A94',
+                    fontSize: 10,
+                    interval: maxDay <= 15 ? 0 : function (idx) {
+                        return idx === 0 || (idx + 1) % 5 === 0 || idx === maxDay - 1;
+                    }
+                }
+            },
+            yAxis: { type: 'value', name: '产量(吨)', axisLabel: { color: '#6B7A94' }, splitLine: { lineStyle: { color: '#F3F4F6' } } },
+            series: series
+        }, true);
+    }
+
+    /* ---------- 月份联动 ---------- */
+    function onPeriodChange() {
+        var p = BDLayout.getPeriod();
+        var m = parseInt(p.month) || 9;
+        var monthVal = (46.0 + (m % 5) * 0.8).toFixed(1);
+        KPIS[3].value = monthVal + '<span class="unit">万度</span>';
+        KPIS[8].value = (91.5 + (m % 3) * 0.6).toFixed(1) + '%';
+        var badge = document.getElementById('energyBadgeText');
+        if (badge) badge.innerText = '当月电耗 ' + monthVal + '万度';
+        renderKPIs();
+        renderOeeTrendChart();
+        renderDailyOutputChart();
+        renderEnergyChart();
+    }
+    window.onPeriodChange = onPeriodChange;
+
+    /* ---------- 页面初始化 ---------- */
+    BDLayout.render({ active: 'prod-equip', title: '设备与能耗' });
+    initEquipSelect();
+    renderKPIs();
+    renderOeeTrendChart();
+    renderEnergyChart();
+    renderDailyOutputChart();
+    window.addEventListener('resize', function () { Object.values(charts).forEach(function (c) { c.resize(); }); });
+    </script>
+</body>
+</html>

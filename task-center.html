@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>任务分析中心 - 宝得经营平台</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/alfa.css">
+    <style>
+        th {
+            font-family: 'Roboto', 'AlfaLaval', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif !important;
+            font-weight: 700;
+        }
+        .custom-scroll::-webkit-scrollbar { height: 6px; width: 6px; }
+        .custom-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scroll::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        .custom-scroll::-webkit-scrollbar-track { background: #f8fafc; }
+    </style>
+</head>
+<body class="min-h-screen">
+    <div class="flex min-h-screen">
+
+        <!-- ============== 左侧导航栏 ============== -->
+        <aside id="sidebar" class="sidebar w-56 flex-shrink-0 relative flex flex-col min-h-screen"></aside>
+
+        <!-- ============== 主内容区 ============== -->
+        <main class="flex-1 overflow-auto">
+            <!-- 顶栏 (对齐驾驶舱统一样式) -->
+            <header id="page-header" class="top-bar sticky top-0 z-40 px-6 py-2.5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="font-bold text-sm text-[#1A2332]">任务分析中心</span>
+                    </div>
+
+                    <!-- 右侧：年月选择胶囊 -->
+                    <div class="flex items-center">
+                        <div class="relative inline-flex">
+                            <div class="time-pill-group flex items-center px-3 py-1 select-none">
+                                <div class="relative">
+                                    <button id="yearDropdownBtn" onclick="toggleDropdown('yearDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332] mono-num">
+                                        <span id="currentYearText">2026</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="yearChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+                                    <div id="yearDropdownMenu" class="hidden dropdown-menu-floating left-0 top-full mt-2 w-32 py-1.5">
+                                        <div id="yearDropdownOptions"></div>
+                                    </div>
+                                </div>
+                                <span class="text-[#0057B8] text-xs px-1 font-light opacity-60">|</span>
+                                <div class="relative">
+                                    <button id="monthDropdownBtn" onclick="toggleDropdown('monthDropdownMenu', event)" class="flex items-center gap-1 px-1.5 hover:text-[#0057B8] transition-colors cursor-pointer text-xs font-bold text-[#1A2332]">
+                                        <span id="currentMonthText">9月</span>
+                                        <svg class="w-3 h-3 text-[#0057B8] transition-transform duration-200" id="monthChevron" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"/>
+                                        </svg>
+                                    </button>
+                                    <div id="monthDropdownMenu" class="hidden dropdown-menu-floating right-0 top-full mt-2 w-48 p-2.5">
+                                        <div class="text-[10px] text-[#8A99B5] px-1 pb-1.5 font-semibold uppercase tracking-wider flex items-center justify-between">
+                                            <span>选择月份</span>
+                                            <span class="text-[9px] text-[#6B7A94]" id="monthLimitTip">当期最多至9月</span>
+                                        </div>
+                                        <div class="grid grid-cols-3 gap-1.5" id="monthOptionsGrid"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <div class="p-3.5 space-y-3">
+
+                <!-- 模块 1：日常事务跟踪总览 (与项目分析中心色系与格式完全对齐) -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-2.5">
+                            <h3 class="section-title">日常事务跟踪总览</h3>
+                        </div>
+
+                        <!-- 顶部 6 大核心 KPI -->
+                        <div id="kpiCardsContainer" class="sales-overview-grid"></div>
+                    </div>
+                </div>
+
+                <!-- 模块 2：日常事务多维分析图表 -->
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-3">
+                    <!-- 图表 1：各部门日常事务负荷与办结分布 -->
+                    <div class="card lg:col-span-2">
+                        <div class="card-inner flex flex-col justify-between" style="min-height: 310px;">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-[#0057B8]"></span>
+                                    <h4 class="font-bold text-xs text-[#1A2332]">各部门日常事务负荷与办结分布</h4>
+                                </div>
+                            </div>
+                            <div id="chartDeptLoad" class="w-full flex-1" style="min-height: 250px;"></div>
+                        </div>
+                    </div>
+
+                    <!-- 图表 2：全厂任务状态与交付构成 -->
+                    <div class="card">
+                        <div class="card-inner flex flex-col justify-between" style="min-height: 310px;">
+                            <div class="flex items-center justify-between mb-2">
+                                <div class="flex items-center gap-2">
+                                    <span class="w-1.5 h-1.5 rounded-full bg-[#5F8E68]"></span>
+                                    <h4 class="font-bold text-xs text-[#1A2332]">全厂任务状态与交付构成</h4>
+                                </div>
+                            </div>
+                            <div id="chartCategoryPie" class="w-full flex-1" style="min-height: 250px;"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 模块 3：全部任务明细清单 (严格对齐企业任务中心字段规范) -->
+                <div class="card">
+                    <div class="card-inner">
+                        <div class="flex items-center justify-between mb-3 pb-2.5 border-b border-[rgba(26,35,50,0.06)] flex-wrap gap-2">
+                            <div class="flex items-center gap-2">
+                                <div class="w-1 h-3.5 bg-gradient-to-b from-[#0057B8] to-[#6B7A94] rounded-full"></div>
+                                <h4 class="font-bold text-xs text-[#1A2332]">全部任务明细清单</h4>
+                            </div>
+
+                            <!-- 筛选控件组 -->
+                            <div class="flex items-center gap-2 flex-wrap text-xs">
+                                <select id="filterAssigner" onchange="applyFilters()" class="border border-slate-200 rounded-lg px-2.5 py-1 bg-white text-xs text-[#1A2332] outline-none">
+                                    <option value="全部">全部指派人</option>
+                                    <option value="王宇航">王宇航</option>
+                                    <option value="顾晓丹">顾晓丹</option>
+                                    <option value="李灵">李灵</option>
+                                </select>
+
+                                <select id="filterOwner" onchange="applyFilters()" class="border border-slate-200 rounded-lg px-2.5 py-1 bg-white text-xs text-[#1A2332] outline-none">
+                                    <option value="全部">全部负责人</option>
+                                    <option value="孙凯">孙凯</option>
+                                    <option value="张军平">张军平</option>
+                                    <option value="顾志鹏">顾志鹏</option>
+                                    <option value="张冬林">张冬林</option>
+                                    <option value="谢文杰">谢文杰</option>
+                                    <option value="万荣云">万荣云</option>
+                                    <option value="方凯">方凯</option>
+                                </select>
+
+                                <select id="filterOverdue" onchange="applyFilters()" class="border border-slate-200 rounded-lg px-2.5 py-1 bg-white text-xs text-[#1A2332] outline-none">
+                                    <option value="全部">是否过期: 全部</option>
+                                    <option value="是">已过期 (是)</option>
+                                    <option value="否">未过期 (否)</option>
+                                </select>
+
+                                <select id="filterStatus" onchange="applyFilters()" class="border border-slate-200 rounded-lg px-2.5 py-1 bg-white text-xs text-[#1A2332] outline-none">
+                                    <option value="全部">全部状态</option>
+                                    <option value="已完成">已完成</option>
+                                    <option value="进行中">进行中</option>
+                                    <option value="待办">待办</option>
+                                </select>
+
+                                <div class="relative">
+                                    <input type="text" id="filterKeyword" oninput="applyFilters()" placeholder="请输入任务名/负责人..." class="pl-7 pr-2.5 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:border-[#0057B8] w-48 bg-slate-50/50">
+                                    <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                                </div>
+
+                                <button type="button" onclick="resetFilters()" class="px-2.5 py-1 rounded-lg border border-slate-200 text-[#6B7A94] hover:text-[#1A2332] hover:bg-slate-50 transition cursor-pointer">重置</button>
+                            </div>
+                        </div>
+
+                        <!-- 矩阵表格 (严格对齐任务中心字段与无花哨颜色规范) -->
+                        <div class="overflow-x-auto max-h-[520px] custom-scroll border border-slate-200 rounded-lg">
+                            <table class="text-xs text-left border-collapse w-full" style="min-width: 1050px;">
+                                <thead class="sticky top-0 z-30 bg-[#F4F7FA]">
+                                    <tr class="bg-[#F4F7FA] text-[#6B7A94] text-[11px] font-bold border-b border-slate-200 whitespace-nowrap" style="height: 36px;">
+                                        <th class="px-3 text-center border-r border-slate-200/60" style="width: 50px;">序号</th>
+                                        <th class="px-3 text-left border-r border-slate-200/60" style="min-width: 250px;">任务名</th>
+                                        <th class="px-2.5 text-center border-r border-slate-200/60" style="width: 85px;">任务状态</th>
+                                        <th class="px-2.5 text-center border-r border-slate-200/60" style="width: 80px;">是否过期</th>
+                                        <th class="px-3 text-center border-r border-slate-200/60" style="width: 140px;">任务进度</th>
+                                        <th class="px-2 text-center border-r border-slate-200/60" style="width: 75px;">任务评价</th>
+                                        <th class="px-2.5 text-center border-r border-slate-200/60" style="width: 90px;">指派人</th>
+                                        <th class="px-2.5 text-center border-r border-slate-200/60" style="width: 90px;">负责人</th>
+                                        <th class="px-3 text-center border-r border-slate-200/60" style="width: 135px;">截止时间</th>
+                                        <th class="px-2.5 text-center" style="width: 95px;">创建时间</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="taskTbody" class="divide-y divide-[rgba(26,35,50,0.06)] text-[#1A2332] text-xs"></tbody>
+                            </table>
+                        </div>
+
+                        <!-- 分页条 (对齐截图 < 1 / 5 > 风格与总记录数) -->
+                        <div id="taskPaginationBar" class="mt-2.5 pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-[#6B7A94]"></div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- ==================== 新建事务弹窗 ==================== -->
+    <div id="newTaskModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm hidden">
+        <div class="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-lg p-6 space-y-4">
+            <div class="flex items-center justify-between pb-2.5 border-b border-slate-100">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-[#0057B8]/10 text-[#0057B8] flex items-center justify-center font-bold">📋</div>
+                    <div>
+                        <h4 class="font-bold text-sm text-[#1A2332]">新建日常事务性任务</h4>
+                        <div class="text-[11px] text-[#6B7A94]">录入日常协同跟踪事项，纳入中心统一考核</div>
+                    </div>
+                </div>
+                <button type="button" onclick="closeNewTaskModal()" class="text-slate-400 hover:text-slate-600 text-lg font-bold cursor-pointer">&times;</button>
+            </div>
+
+            <form id="newTaskForm" onsubmit="submitNewTask(event)" class="space-y-3 text-xs">
+                <div>
+                    <label class="block text-slate-700 font-medium mb-1">事务任务名称 *</label>
+                    <input type="text" id="taskInputTitle" required placeholder="如：XX板换急单加急排产协调..." class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-[#0057B8] outline-none">
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-700 font-medium mb-1">事务类别 *</label>
+                        <select id="taskInputCategory" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg outline-none">
+                            <option value="生产交期协调">生产交期协调</option>
+                            <option value="技术图纸确认">技术图纸确认</option>
+                            <option value="客户现场支持">客户现场支持</option>
+                            <option value="质量整改跟进">质量整改跟进</option>
+                            <option value="物料采购催交">物料采购催交</option>
+                            <option value="财务与商务流转">财务与商务流转</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-medium mb-1">责任部门 *</label>
+                        <select id="taskInputDept" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg outline-none">
+                            <option value="生产部">生产部</option>
+                            <option value="技术部">技术部</option>
+                            <option value="销售部">销售部</option>
+                            <option value="质保部">质保部</option>
+                            <option value="采购部">采购部</option>
+                            <option value="财务部">财务部</option>
+                            <option value="综合办">综合办</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-700 font-medium mb-1">优先级 *</label>
+                        <select id="taskInputPriority" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg outline-none">
+                            <option value="常规">常规</option>
+                            <option value="紧急">紧急</option>
+                            <option value="特急">特急</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-medium mb-1">责任执行人 *</label>
+                        <input type="text" id="taskInputAssignee" required placeholder="如：李工程师" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:border-[#0057B8] outline-none">
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-slate-700 font-medium mb-1">截止日期 *</label>
+                        <input type="date" id="taskInputDueDate" required value="2026-09-15" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-slate-700 font-medium mb-1">初始状态</label>
+                        <select id="taskInputStatus" class="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg outline-none">
+                            <option value="进行中">进行中</option>
+                            <option value="待启动">待启动</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-slate-700 font-medium mb-1">背景与闭环要求备注</label>
+                    <textarea id="taskInputRemark" rows="2" placeholder="详细说明任务背景、交接人及输出成果要求..." class="w-full px-3 py-1.5 border border-slate-200 rounded-lg outline-none"></textarea>
+                </div>
+
+                <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="closeNewTaskModal()" class="px-4 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 cursor-pointer">取消</button>
+                    <button type="submit" class="px-4 py-1.5 rounded-lg bg-[#0057B8] hover:bg-[#00479A] text-white font-bold shadow-xs cursor-pointer">保存创建</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- 简易 Toast -->
+    <div id="toastNotification" class="fixed bottom-6 right-6 z-50 bg-[#1A2332] text-white text-xs px-4 py-2.5 rounded-xl shadow-2xl transform translate-y-10 opacity-0 pointer-events-none transition-all duration-300 flex items-center gap-2">
+        <span id="toastIcon">🟢</span>
+        <span id="toastMsg">操作成功</span>
+    </div>
+
+    <script src="assets/js/layout.js"></script>
+    <script src="assets/js/task-store.js"></script>
+    <script>
+    var currentTasks = [];
+    var taskPage = 1;
+    var taskPageSize = 12;
+
+    var chartDeptInstance = null;
+    var chartCategoryInstance = null;
+
+    window.addEventListener('DOMContentLoaded', function () {
+        BDLayout.render({ active: 'task' });
+        renderTaskDashboard();
+    });
+
+    window.onPeriodChange = function () {
+        renderTaskDashboard();
+    };
+
+    function renderTaskDashboard() {
+        renderKpis();
+        initCharts();
+        applyFilters();
+    }
+
+    /* 1. 渲染 6 大核心 KPI 卡片 (与项目分析中心色系与格式 100% 保持一致) */
+    function renderKpis() {
+        var kpi = BaodeTaskStore.getKpiSummary();
+        var rateVal = (kpi.onTimeRate || '96.0%').replace('%', '');
+        var cards = [
+            { label: '全部任务总数', value: kpi.total, unit: '项' },
+            { label: '正在执行中', value: kpi.inProgress, unit: '项' },
+            { label: '已完成办结', value: kpi.completed, unit: '项' },
+            { label: '待启动未办', value: kpi.pending, unit: '项' },
+            { label: '超期未结任务', value: kpi.overdue, unit: '项' },
+            { label: '综合准时交付率', value: rateVal, unit: '%' }
+        ];
+
+        var dom = document.getElementById('kpiCardsContainer');
+        if (dom) {
+            dom.innerHTML = cards.map(function (c) {
+                return '<div class="sales-overview-cell">' +
+                    '<div class="kpi-label">' + c.label + '</div>' +
+                    '<div class="kpi-value sales-overview-value">' + c.value + '<span class="unit text-xs">' + c.unit + '</span></div>' +
+                '</div>';
+            }).join('');
+        }
+    }
+
+    /* 2. 初始化图表 */
+    function initCharts() {
+        // 各部门日常事务负荷柱状图
+        var deptEl = document.getElementById('chartDeptLoad');
+        if (deptEl) {
+            if (!chartDeptInstance) chartDeptInstance = echarts.init(deptEl);
+            var deptData = BaodeTaskStore.getDeptDistribution();
+            var optDept = Object.assign({}, alfaBaseChartOpt(), {
+                grid: { left: 40, right: 15, top: 30, bottom: 25 },
+                legend: { data: ['进行中', '已办结', '待启动'], right: 10, top: 0, textStyle: { fontSize: 11, color: '#6B7A94' } },
+                xAxis: {
+                    type: 'category',
+                    data: deptData.depts,
+                    axisLine: { lineStyle: { color: 'rgba(26,35,50,0.1)' } },
+                    axisLabel: { color: '#6B7A94', fontSize: 11 }
+                },
+                yAxis: {
+                    type: 'value',
+                    splitLine: { lineStyle: { color: 'rgba(26,35,50,0.05)', type: 'dashed' } },
+                    axisLabel: { color: '#6B7A94', fontSize: 11 }
+                },
+                series: [
+                    { name: '进行中', type: 'bar', stack: 'total', data: deptData.inProgress, barWidth: 16, itemStyle: { color: '#0057B8' } },
+                    { name: '已办结', type: 'bar', stack: 'total', data: deptData.completed, itemStyle: { color: '#5F8E68' } },
+                    { name: '待启动', type: 'bar', stack: 'total', data: deptData.pending, itemStyle: { color: '#94A3B8' } }
+                ]
+            });
+            chartDeptInstance.setOption(optDept);
+        }
+
+        // 全厂任务状态与闭环构成环形图
+        var catEl = document.getElementById('chartCategoryPie');
+        if (catEl) {
+            if (!chartCategoryInstance) chartCategoryInstance = echarts.init(catEl);
+            var pieData = BaodeTaskStore.getStatusPieData();
+            var optCat = {
+                color: ['#5F8E68', '#0057B8', '#94A3B8', '#E87722'],
+                tooltip: { trigger: 'item', formatter: '{b}: {c} 项 ({d}%)' },
+                legend: { bottom: 0, left: 'center', itemWidth: 8, itemHeight: 8, textStyle: { fontSize: 10, color: '#6B7A94' } },
+                series: [{
+                    name: '任务状态',
+                    type: 'pie',
+                    radius: ['42%', '70%'],
+                    center: ['50%', '42%'],
+                    avoidLabelOverlap: false,
+                    itemStyle: { borderRadius: 4, borderColor: '#fff', borderWidth: 2 },
+                    label: { show: false },
+                    data: pieData
+                }]
+            };
+            chartCategoryInstance.setOption(optCat);
+        }
+
+        window.addEventListener('resize', function () {
+            if (chartDeptInstance) chartDeptInstance.resize();
+            if (chartCategoryInstance) chartCategoryInstance.resize();
+        });
+    }
+
+    /* 3. 筛选与表格渲染 */
+    function applyFilters() {
+        var assigner = document.getElementById('filterAssigner').value;
+        var owner = document.getElementById('filterOwner').value;
+        var isOverdue = document.getElementById('filterOverdue').value;
+        var status = document.getElementById('filterStatus').value;
+        var kw = document.getElementById('filterKeyword').value;
+
+        currentTasks = BaodeTaskStore.getTasks({
+            assigner: assigner,
+            owner: owner,
+            isOverdue: isOverdue,
+            status: status,
+            keyword: kw
+        });
+
+        taskPage = 1;
+        renderTable();
+    }
+
+    function resetFilters() {
+        document.getElementById('filterAssigner').value = '全部';
+        document.getElementById('filterOwner').value = '全部';
+        document.getElementById('filterOverdue').value = '全部';
+        document.getElementById('filterStatus').value = '全部';
+        document.getElementById('filterKeyword').value = '';
+        applyFilters();
+    }
+
+    function renderTable() {
+        var tbody = document.getElementById('taskTbody');
+        var total = currentTasks.length;
+        var maxPages = Math.ceil(total / taskPageSize) || 1;
+        if (taskPage > maxPages) taskPage = maxPages;
+
+        var start = (taskPage - 1) * taskPageSize;
+        var end = Math.min(start + taskPageSize, total);
+        var pageRows = currentTasks.slice(start, end);
+
+        if (pageRows.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="10" class="text-center py-10 text-slate-400 text-xs">未找到符合条件的事项记录</td></tr>';
+            document.getElementById('taskPaginationBar').innerHTML = '';
+            return;
+        }
+
+        var html = pageRows.map(function (r, idx) {
+            var seq = start + idx + 1;
+
+            // 状态圆点样式
+            var dotColor = '#94A3B8';
+            if (r.status === '已完成' || r.progress === 100) dotColor = '#10B981';
+            else if (r.status === '进行中') dotColor = '#0057B8';
+            else if (r.status === '待办') dotColor = '#F59E0B';
+
+            var statusHtml = '<div class="flex items-center justify-center gap-1.5">' +
+                '<span class="w-2 h-2 rounded-full inline-block flex-shrink-0" style="background-color:' + dotColor + '"></span>' +
+                '<span class="text-xs text-[#1A2332] font-medium">' + r.status + '</span>' +
+            '</div>';
+
+            // 进度条样式 (100% 翠绿，执行中 蓝，0% 浅灰)
+            var barColor = 'bg-slate-200';
+            if (r.progress === 100) barColor = 'bg-[#10B981]';
+            else if (r.progress > 0) barColor = 'bg-[#0057B8]';
+
+            var progressHtml = '<div class="flex items-center justify-center gap-2">' +
+                '<span class="font-mono text-xs w-9 text-right font-medium text-[#1A2332]">' + r.progress + '%</span>' +
+                '<div class="w-20 bg-slate-100 rounded-full h-1.5 overflow-hidden">' +
+                    '<div class="h-1.5 rounded-full ' + barColor + '" style="width: ' + r.progress + '%"></div>' +
+                '</div>' +
+            '</div>';
+
+            // 是否过期
+            var overdueHtml = r.isOverdue === '是' ? 
+                '<span class="text-[#1A2332] font-bold text-xs">是</span>' : 
+                '<span class="text-slate-500 text-xs">否</span>';
+
+            // 截止时间
+            var deadlineHtml = r.deadline && r.deadline.indexOf('超期') !== -1 ?
+                '<span class="text-[#1A2332] font-bold text-xs">' + r.deadline + '</span>' :
+                '<span class="text-slate-600 font-mono text-[11.5px]">' + r.deadline + '</span>';
+
+            return '<tr class="hover:bg-slate-50/80 transition-colors">' +
+                '<td class="px-3 py-2.5 text-center text-slate-400 font-mono text-xs">' + seq + '</td>' +
+                '<td class="px-3 py-2.5 font-medium text-[#1A2332] text-xs" title="' + r.name + '">' + r.name + '</td>' +
+                '<td class="px-2.5 py-2.5 text-center whitespace-nowrap">' + statusHtml + '</td>' +
+                '<td class="px-2.5 py-2.5 text-center whitespace-nowrap">' + overdueHtml + '</td>' +
+                '<td class="px-3 py-2.5 text-center whitespace-nowrap">' + progressHtml + '</td>' +
+                '<td class="px-2 py-2.5 text-center text-slate-500 text-xs whitespace-nowrap">' + (r.evaluation || '待评') + '</td>' +
+                '<td class="px-2.5 py-2.5 text-center whitespace-nowrap font-medium text-[#0057B8] cursor-pointer hover:underline">' + r.assigner + '</td>' +
+                '<td class="px-2.5 py-2.5 text-center whitespace-nowrap font-medium text-[#0057B8] cursor-pointer hover:underline">' + r.owner + '</td>' +
+                '<td class="px-3 py-2.5 text-center whitespace-nowrap">' + deadlineHtml + '</td>' +
+                '<td class="px-2.5 py-2.5 text-center font-mono text-xs text-slate-500 whitespace-nowrap">' + r.createdAt + '</td>' +
+            '</tr>';
+        }).join('');
+
+        tbody.innerHTML = html;
+        renderPaginationBar(total, taskPage, taskPageSize, maxPages);
+    }
+
+    function renderPaginationBar(total, page, pageSize, totalPages) {
+        var el = document.getElementById('taskPaginationBar');
+        if (!el) return;
+
+        var prevDisabled = page <= 1 ? 'disabled class="opacity-30 cursor-not-allowed px-2 py-0.5 border border-slate-200 rounded text-xs"' : 'class="px-2 py-0.5 border border-slate-200 rounded hover:bg-slate-50 transition cursor-pointer text-[#1A2332] text-xs font-bold" onclick="setPage(' + (page - 1) + ')"';
+        var nextDisabled = page >= totalPages ? 'disabled class="opacity-30 cursor-not-allowed px-2 py-0.5 border border-slate-200 rounded text-xs"' : 'class="px-2 py-0.5 border border-slate-200 rounded hover:bg-slate-50 transition cursor-pointer text-[#1A2332] text-xs font-bold" onclick="setPage(' + (page + 1) + ')"';
+
+        el.innerHTML = '<div class="flex items-center gap-2">' +
+            '<span>全厂任务清单</span>' +
+            '<span class="text-slate-300">|</span>' +
+            '<span>共 <b class="text-[#1A2332] font-mono">' + total + '</b> 条记录</span>' +
+        '</div>' +
+        '<div class="flex items-center gap-2">' +
+            '<button ' + prevDisabled + '>&lt;</button>' +
+            '<span class="text-xs font-mono text-[#1A2332] font-medium">' + page + ' / ' + totalPages + '</span>' +
+            '<button ' + nextDisabled + '>&gt;</button>' +
+        '</div>';
+    }
+
+    function setPage(p) {
+        taskPage = p;
+        renderTable();
+    }
+
+    /* 4. 弹窗新建日常事务 */
+    function openNewTaskModal() {
+        document.getElementById('newTaskModal').classList.remove('hidden');
+    }
+
+    function closeNewTaskModal() {
+        document.getElementById('newTaskModal').classList.add('hidden');
+        document.getElementById('newTaskForm').reset();
+    }
+
+    function submitNewTask(e) {
+        e.preventDefault();
+        var task = {
+            title: document.getElementById('taskInputTitle').value.trim(),
+            category: document.getElementById('taskInputCategory').value,
+            dept: document.getElementById('taskInputDept').value,
+            priority: document.getElementById('taskInputPriority').value,
+            assignee: document.getElementById('taskInputAssignee').value.trim(),
+            creator: '当前登录主管',
+            status: document.getElementById('taskInputStatus').value,
+            dueDate: document.getElementById('taskInputDueDate').value,
+            remark: document.getElementById('taskInputRemark').value.trim()
+        };
+
+        BaodeTaskStore.createTask(task);
+        closeNewTaskModal();
+        showToast('新建事务性任务成功并已发布跟踪！');
+        renderTaskDashboard();
+    }
+
+    function showToast(msg) {
+        var t = document.getElementById('toastNotification');
+        document.getElementById('toastMsg').innerText = msg;
+        t.classList.remove('translate-y-10', 'opacity-0', 'pointer-events-none');
+        setTimeout(function () {
+            t.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+        }, 2200);
+    }
+    </script>
+</body>
+</html>
