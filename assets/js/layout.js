@@ -123,16 +123,25 @@ var BDLayout = (function () {
         var currentFile = window.location.pathname.replace(/\\/g, '/').split('/').pop();
 
         var html = '' +
-            '<!-- Logo -->' +
-            '<div class="sidebar-logo-wrap p-4 cursor-pointer hover:bg-black/5 transition-all" onclick="window.location.href=\'' + base + 'index.html\'" title="点击返回门户工作台">' +
-                '<div class="flex items-center gap-3">' +
-                    '<div class="logo-square w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-[rgba(0,87,184,0.22)] shadow-sm flex-shrink-0">' +
-                        '<span class="font-black text-base tracking-tight text-[#0057B8]">BI</span>' +
+            '<!-- 浮动边缘收起/展开控制按钮（悬浮在侧边栏时展示） -->' +
+            '<button type="button" onclick="BDLayout.toggleCollapse(event)" class="sidebar-toggle-edge" id="sidebarEdgeToggle" title="' + (isCollapsed ? '点击展开侧边栏' : '点击收起侧边栏') + '">' +
+                '<svg class="w-3.5 h-3.5 transition-transform duration-200" id="collapseEdgeChevron" style="' + (isCollapsed ? 'transform: rotate(180deg);' : '') + '" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M15 19l-7-7 7-7"/></svg>' +
+            '</button>' +
+            '<!-- Logo 与顶部收起控制 -->' +
+            '<div class="sidebar-logo-wrap p-4 transition-all">' +
+                '<div class="flex items-center justify-between gap-2">' +
+                    '<div class="flex items-center gap-3 cursor-pointer flex-1 overflow-hidden" onclick="window.location.href=\'' + base + 'index.html\'" title="点击返回门户工作台">' +
+                        '<div class="logo-square w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-[rgba(0,87,184,0.22)] shadow-sm flex-shrink-0">' +
+                            '<span class="font-black text-base tracking-tight text-[#0057B8]">BI</span>' +
+                        '</div>' +
+                        '<div class="sidebar-logo-text overflow-hidden">' +
+                            '<div class="font-bold text-sm leading-tight text-[#1A2332] whitespace-nowrap">宝得经营平台</div>' +
+                            '<div class="text-[9.5px] mt-0.5 tracking-wider font-semibold text-[#6B7A94] uppercase whitespace-nowrap">BAODE PLATFORM</div>' +
+                        '</div>' +
                     '</div>' +
-                    '<div class="sidebar-logo-text overflow-hidden">' +
-                        '<div class="font-bold text-sm leading-tight text-[#1A2332] whitespace-nowrap">宝得经营平台</div>' +
-                        '<div class="text-[9.5px] mt-0.5 tracking-wider font-semibold text-[#6B7A94] uppercase whitespace-nowrap">BAODE PLATFORM</div>' +
-                    '</div>' +
+                    '<button type="button" onclick="BDLayout.toggleCollapse(event)" class="sidebar-top-toggle-btn w-7 h-7 rounded-lg flex items-center justify-center text-[#6B7A94] hover:text-[#0057B8] hover:bg-[#0057B8]/10 transition-all cursor-pointer flex-shrink-0" id="sidebarTopToggle" title="' + (isCollapsed ? '展开侧边栏' : '收起侧边栏') + '">' +
+                        '<svg class="w-4 h-4 transition-transform duration-200" id="collapseTopChevron" style="' + (isCollapsed ? 'transform: rotate(180deg);' : '') + '" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>' +
+                    '</button>' +
                 '</div>' +
             '</div>' +
             '<!-- 导航菜单 -->' +
@@ -197,17 +206,7 @@ var BDLayout = (function () {
             }
         });
 
-        html += '</nav>' +
-            '<!-- 侧边栏底部折叠切换按钮 -->' +
-            '<div class="p-2.5 border-t border-[rgba(26,35,50,0.06)] flex-shrink-0">' +
-                '<button type="button" onclick="BDLayout.toggleCollapse()" class="collapse-btn w-full flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold text-[#6B7A94] hover:text-[#0057B8] hover:bg-[#0057B8]/8 transition-all cursor-pointer" title="收起 / 展开侧边栏">' +
-                    '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
-                        '<svg class="w-4 h-4 transition-transform duration-200" id="collapseChevron" style="' + (isCollapsed ? 'transform: rotate(180deg);' : '') + '" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>' +
-                    '</span>' +
-                    '<span class="flex-1 text-left collapse-text whitespace-nowrap">' + (isCollapsed ? '展开' : '收起侧栏') + '</span>' +
-                '</button>' +
-            '</div>';
-
+        html += '</nav>';
         el.innerHTML = html;
     }
 
@@ -286,19 +285,33 @@ var BDLayout = (function () {
         }
     }
 
-    function toggleCollapse() {
+    function toggleCollapse(e) {
+        if (e && e.stopPropagation) e.stopPropagation();
         var el = document.getElementById('sidebar');
         if (!el) return;
         var isCollapsed = el.classList.toggle('collapsed');
         sessionStorage.setItem('bd_sidebar_collapsed', isCollapsed ? 'true' : 'false');
-        var chevron = document.getElementById('collapseChevron');
-        if (chevron) {
-            chevron.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+        
+        // 同步边缘收起/展开控制按钮状态
+        var edgeChevron = document.getElementById('collapseEdgeChevron');
+        if (edgeChevron) {
+            edgeChevron.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
         }
-        var btnText = el.querySelector('.collapse-text');
-        if (btnText) {
-            btnText.innerText = isCollapsed ? '展开' : '收起侧栏';
+        var edgeToggle = document.getElementById('sidebarEdgeToggle');
+        if (edgeToggle) {
+            edgeToggle.title = isCollapsed ? '点击展开侧边栏' : '点击收起侧边栏';
         }
+
+        // 同步顶部收起/展开控制按钮状态
+        var topChevron = document.getElementById('collapseTopChevron');
+        if (topChevron) {
+            topChevron.style.transform = isCollapsed ? 'rotate(180deg)' : 'rotate(0deg)';
+        }
+        var topToggle = document.getElementById('sidebarTopToggle');
+        if (topToggle) {
+            topToggle.title = isCollapsed ? '展开侧边栏' : '收起侧边栏';
+        }
+
         setTimeout(function () {
             window.dispatchEvent(new Event('resize'));
         }, 180);

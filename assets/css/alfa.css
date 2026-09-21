@@ -94,7 +94,7 @@ body::before {
     box-shadow:
         inset -1px 0 0 rgba(255, 255, 255, 0.85),
         4px 0 24px rgba(26, 35, 50, 0.06);
-    z-index: 10;
+    z-index: 30;
 }
 
 .sidebar::after {
@@ -666,9 +666,10 @@ tr:hover td { background: rgba(0, 87, 184, 0.03); }
 }
 
 /* ============================================================
-   侧边栏折叠/展开 (Mini Sidebar)
+   侧边栏折叠/展开 (Mini Sidebar) 与悬浮显隐
    ============================================================ */
 .sidebar {
+    position: relative;
     transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sidebar.collapsed {
@@ -676,12 +677,12 @@ tr:hover td { background: rgba(0, 87, 184, 0.03); }
     min-width: 68px !important;
 }
 .sidebar.collapsed .sidebar-logo-text,
+.sidebar.collapsed .sidebar-top-toggle-btn,
 .sidebar.collapsed .nav-item > span.flex-1,
 .sidebar.collapsed .nav-item .truncate,
 .sidebar.collapsed .nav-code,
 .sidebar.collapsed .nav-arrow,
-.sidebar.collapsed .nav-sub-menu,
-.sidebar.collapsed .collapse-text {
+.sidebar.collapsed .nav-sub-menu {
     display: none !important;
 }
 .sidebar.collapsed .nav-item {
@@ -697,11 +698,58 @@ tr:hover td { background: rgba(0, 87, 184, 0.03); }
 .sidebar.collapsed .sidebar-logo-wrap .flex {
     justify-content: center !important;
 }
-.sidebar.collapsed .collapse-btn {
-    justify-content: center !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+
+/* 顶部与边缘悬浮收起按钮交互（鼠标悬停在侧边栏时展示） */
+.sidebar-top-toggle-btn {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
+.sidebar:hover .sidebar-top-toggle-btn {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.sidebar-toggle-edge {
+    position: absolute;
+    top: 20px;
+    right: -13px;
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: #FFFFFF;
+    border: 1px solid rgba(0, 87, 184, 0.25);
+    color: #0057B8;
+    box-shadow: 0 2px 8px rgba(26, 35, 50, 0.12);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    z-index: 1000;
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.85);
+    transition: opacity 0.2s ease, transform 0.2s ease, background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+.sidebar:hover .sidebar-toggle-edge {
+    opacity: 1;
+    pointer-events: auto;
+    transform: scale(1);
+}
+.sidebar-toggle-edge:hover {
+    background: #0057B8;
+    color: #FFFFFF;
+    border-color: #0057B8;
+    transform: scale(1.1);
+    box-shadow: 0 4px 14px rgba(0, 87, 184, 0.35);
+}
+.sidebar-toggle-edge::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+}
+
 .sidebar.collapsed .nav-item:hover::after {
     content: attr(data-title);
     position: absolute;
