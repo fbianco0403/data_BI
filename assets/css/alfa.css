@@ -681,17 +681,29 @@ tr:hover td { background: rgba(0, 87, 184, 0.03); }
 .sidebar.collapsed .sidebar-top-toggle-btn,
 .sidebar.collapsed .nav-item > span.flex-1,
 .sidebar.collapsed .nav-item .truncate,
+.sidebar.collapsed .nav-suffix,
 .sidebar.collapsed .nav-code,
 .sidebar.collapsed .nav-arrow,
-.sidebar.collapsed .nav-sub-menu {
+.sidebar.collapsed .nav-sub-menu,
+.sidebar.collapsed .nav-item.active::after {
     display: none !important;
 }
+.sidebar.collapsed nav {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+}
 .sidebar.collapsed .nav-item {
-    justify-content: center !important;
+    width: 48px !important;
+    height: 40px !important;
+    margin: 4px auto !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
-    margin-left: 4px;
-    margin-right: 4px;
+    justify-content: center !important;
+    align-items: center !important;
+    border-radius: 8px !important;
+}
+.sidebar.collapsed .nav-item > span.w-5 {
+    margin: 0 !important;
 }
 .sidebar.collapsed .sidebar-logo-wrap {
     padding: 14px 6px !important;

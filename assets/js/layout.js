@@ -201,14 +201,12 @@ var BDLayout = (function () {
                 '</a>';
             } else {
                 html += '<div class="nav-group ' + (groupExpanded ? 'expanded active' : '') + '">' +
-                    '<a href="' + base + item.href + '" data-title="' + item.label + '" class="nav-item ' + (isParentActive && !isChildActive ? 'active' : '') + ' flex items-center justify-between px-3 py-2.5 rounded-r text-sm" title="' + item.label + '">' +
-                        '<div class="flex items-center gap-3 flex-1 overflow-hidden">' +
-                            '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
-                                '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + item.icon + '"/></svg>' +
-                            '</span>' +
-                            '<span class="truncate font-medium">' + item.label + '</span>' +
-                        '</div>' +
-                        '<div class="flex items-center gap-1.5 flex-shrink-0">' +
+                    '<a href="' + base + item.href + '" data-title="' + item.label + '" class="nav-item ' + (isParentActive && !isChildActive ? 'active' : '') + ' flex items-center gap-3 px-3 py-2.5 rounded-r text-sm" title="' + item.label + '">' +
+                        '<span class="w-5 h-5 flex items-center justify-center flex-shrink-0">' +
+                            '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="' + item.icon + '"/></svg>' +
+                        '</span>' +
+                        '<span class="flex-1 truncate font-medium">' + item.label + '</span>' +
+                        '<div class="flex items-center gap-1.5 flex-shrink-0 nav-suffix">' +
                             '<span class="nav-code">' + item.code + '</span>' +
                             '<svg class="w-3.5 h-3.5 text-[#8A99B5] nav-arrow transition-transform ' + (groupExpanded ? 'rotate-180' : '') + '" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>' +
                         '</div>' +
